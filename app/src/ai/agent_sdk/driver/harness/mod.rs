@@ -37,11 +37,13 @@ use super::{
 mod claude_code;
 pub(crate) mod claude_transcript;
 mod gemini;
+mod generic_http;
 mod json_utils;
 
 pub(crate) use claude_code::ClaudeHarness;
 use claude_transcript::ClaudeResumeInfo;
 use gemini::GeminiHarness;
+pub(crate) use generic_http::GenericHttpHarness;
 
 /// Harness-agnostic payload describing how to resume an existing conversation.
 ///
@@ -167,6 +169,13 @@ pub(crate) fn harness_kind(harness: Harness) -> Result<HarnessKind, AgentDriverE
         Harness::Claude => Ok(HarnessKind::ThirdParty(Box::new(ClaudeHarness))),
         Harness::OpenCode => Ok(HarnessKind::Unsupported(Harness::OpenCode)),
         Harness::Gemini => Ok(HarnessKind::ThirdParty(Box::new(GeminiHarness))),
+        Harness::Generic => {
+            // Use default config for Generic harness
+            let config = generic_http::GenericProviderConfig::default();
+            Ok(HarnessKind::ThirdParty(Box::new(GenericHttpHarness::new(
+                config,
+            ))))
+        }
         Harness::Unknown => Err(AgentDriverError::InvalidRuntimeState),
     }
 }

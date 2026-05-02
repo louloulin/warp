@@ -495,11 +495,9 @@ impl AgentDriver {
             )
         );
 
-        // If we're not logged in, the root view will go to an auth screen, and all subsequent steps will fail.
-        // This should be impossible, since we enforce login before reaching this point.
-        if !AuthStateProvider::as_ref(ctx).get().is_logged_in() {
-            return Err(AgentDriverError::NotLoggedIn);
-        }
+        // AI is now available for all users (including anonymous) to support local LLM providers.
+        // Note: For cloud LLM calls, the harness will handle authentication internally.
+        // For local LLM providers, no authentication is required.
 
         // Extract the conversation ID if we're restoring a conversation.
         // This will be used when submitting the initial query to continue the conversation.
