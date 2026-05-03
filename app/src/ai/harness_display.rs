@@ -19,6 +19,7 @@ pub fn display_name(harness: Harness) -> &'static str {
         Harness::Claude => "Claude Code",
         Harness::OpenCode => "OpenCode",
         Harness::Gemini => "Gemini CLI",
+        Harness::Generic => "Generic HTTP",
         Harness::Unknown => "Unknown",
     }
 }
@@ -30,6 +31,7 @@ pub fn icon_for(harness: Harness) -> Icon {
         Harness::Claude => Icon::ClaudeLogo,
         Harness::OpenCode => Icon::OpenCodeLogo,
         Harness::Gemini => Icon::GeminiLogo,
+        Harness::Generic => Icon::Globe,
         Harness::Unknown => Icon::HelpCircle,
     }
 }
@@ -42,6 +44,12 @@ pub fn brand_color(harness: Harness) -> Option<ColorU> {
         Harness::Claude => Some(CLAUDE_ORANGE),
         Harness::OpenCode => None,
         Harness::Gemini => Some(GEMINI_BLUE),
+        Harness::Generic => Some(ColorU {
+            r: 20,
+            g: 184,
+            b: 166,
+            a: 255,
+        }), // Teal for local LLM providers
         Harness::Unknown => None,
     }
 }
