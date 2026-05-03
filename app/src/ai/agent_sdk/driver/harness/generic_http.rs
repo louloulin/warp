@@ -9,6 +9,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use async_trait::async_trait;
+use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use warp_cli::agent::Harness;
 use warp_managed_secrets::ManagedSecretValue;
@@ -63,6 +64,27 @@ struct ChatRequest {
     stream: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     tools: Option<Vec<serde_json::Value>>,
+}
+
+/// OpenAI Chat Completions streaming response delta.
+#[derive(Debug, Deserialize)]
+struct StreamingDelta {
+    content: Option<String>,
+    #[serde(rename = "tool_calls")]
+    tool_calls: Option<Vec<ToolCall>>,
+}
+
+/// OpenAI Chat Completions streaming chunk.
+#[derive(Debug, Deserialize)]
+struct StreamingChunk {
+    choices: Vec<StreamingChoice>,
+}
+
+#[derive(Debug, Deserialize)]
+struct StreamingChoice {
+    delta: StreamingDelta,
+    #[serde(rename = "finish_reason")]
+    finish_reason: Option<String>,
 }
 
 /// OpenAI Chat Completions response format.
@@ -292,7 +314,11 @@ impl super::HarnessRunner for GenericHarnessRunner {
             req_builder = req_builder.header("Authorization", format!("Bearer {}", api_key));
         }
 
-        // Send request
+        if self.config.streaming {
+            return self.stream_response(req_builder, foreground).await;
+        }
+
+        // Non-streaming response
         let response =
             req_builder
                 .send()
@@ -314,7 +340,6 @@ impl super::HarnessRunner for GenericHarnessRunner {
             });
         }
 
-        // For now, use non-streaming response
         let chat_response: ChatResponse =
             response
                 .json()
@@ -331,16 +356,6 @@ impl super::HarnessRunner for GenericHarnessRunner {
             .and_then(|c| c.message.content.clone())
             .unwrap_or_default();
 
-        // Update conversation history
-        self.messages.push(Message {
-            role: "user".to_string(),
-            content: self.current_prompt.clone(),
-        });
-        self.messages.push(Message {
-            role: "assistant".to_string(),
-            content: content.clone(),
-        });
-
         // Write response to terminal
         let driver = self.terminal_driver.clone();
         let _ = foreground
@@ -350,6 +365,88 @@ impl super::HarnessRunner for GenericHarnessRunner {
             .await;
 
         // Return a mock command handle (the command completed successfully)
+        Ok(CommandHandle {
+            inner: tokio::sync::oneshot::channel().0,
+            block_id: None,
+            conversation_id: None,
+        })
+    }
+
+    /// Handle streaming response (SSE).
+    async fn stream_response(
+        &self,
+        req_builder: reqwest::RequestBuilder,
+        foreground: &ModelSpawner<crate::ai::agent_sdk::driver::AgentDriver>,
+    ) -> Result<CommandHandle, AgentDriverError> {
+        let response =
+            req_builder
+                .send()
+                .await
+                .map_err(|e| AgentDriverError::HarnessSetupFailed {
+                    harness: "generic".to_string(),
+                    reason: format!(
+                        "Failed to connect to streaming endpoint: {}. Is the server running?",
+                        e
+                    ),
+                })?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            return Err(AgentDriverError::HarnessSetupFailed {
+                harness: "generic".to_string(),
+                reason: format!("Streaming request failed with status {}: {}", status, body),
+            });
+        }
+
+        // Process SSE stream
+        let mut stream = response.bytes_stream();
+        let mut accumulated_content = String::new();
+        let driver = self.terminal_driver.clone();
+
+        while let Some(chunk_result) = stream.next().await {
+            match chunk_result {
+                Ok(bytes) => {
+                    // Parse SSE data lines
+                    if let Ok(text) = String::from_utf8(bytes.to_vec()) {
+                        for line in text.lines() {
+                            if line.starts_with("data: ") {
+                                let data = &line[6..];
+                                if data == "[DONE]" {
+                                    break;
+                                }
+                                // Parse streaming chunk
+                                if let Ok(chunk) = serde_json::from_str::<StreamingChunk>(data) {
+                                    for choice in chunk.choices {
+                                        if let Some(content) = choice.delta.content {
+                                            accumulated_content.push_str(&content);
+                                            // Write incremental content to terminal
+                                            let _ = foreground
+                                                .spawn({
+                                                    let driver = driver.clone();
+                                                    let content = content.clone();
+                                                    move |_, ctx| {
+                                                        driver
+                                                            .as_ref(ctx)
+                                                            .write_to_terminal(&content, ctx);
+                                                    }
+                                                })
+                                                .await;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    log::warn!("Stream error: {}", e);
+                    break;
+                }
+            }
+        }
+
+        // Return command handle
         Ok(CommandHandle {
             inner: tokio::sync::oneshot::channel().0,
             block_id: None,
