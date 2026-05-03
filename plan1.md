@@ -4,11 +4,11 @@
 >
 > **项目路径**: `/Users/louloulin/Documents/linchong/rust/warp`
 >
-> **计划版本**: 5.0 (实现中)
+> **计划版本**: 6.1 (实现中)
 >
 > **生成日期**: 2026-05-02
 >
-> **更新日期**: 2026-05-02
+> **更新日期**: 2026-05-03
 
 ---
 
@@ -16,6 +16,7 @@
 
 | 日期 | 版本 | 变更 |
 |------|------|------|
+| 2026-05-03 | 6.1 | 添加配置持久化 (save/load) |
 | 2026-05-03 | 6.0 | 所有功能完成 |
 | 2026-05-03 | 5.8 | 添加 Anthropic Claude API 支持 |
 | 2026-05-03 | 5.7 | 添加剩余云端 Provider 预设 |
@@ -132,6 +133,7 @@ warp_multi_agent_api::ResponseEvent::decode(decoded_data.as_slice())
 | Provider 自动检测 | Ollama/LM Studio | ✅ 2026-05-03 |
 | 工具调用支持 | with_tools/add_tool | ✅ 2026-05-03 |
 | 连接检查/模型列表 | check_connection/get_models | ✅ 2026-05-03 |
+| 配置持久化 | save/load 方法 | ✅ 2026-05-03 |
 
 ### 🔲 待完成
 
@@ -228,7 +230,7 @@ pub struct OpenAICompatibleProvider {
 **新增文件**:
 | 文件 | 说明 |
 |------|------|
-| `app/src/ai/agent_sdk/driver/harness/generic_http.rs` | Generic HTTP Harness (400行) |
+| `app/src/ai/agent_sdk/driver/harness/generic_http.rs` | Generic HTTP Harness (~1100行) |
 
 **修改文件**:
 | 文件 | 修改 |
@@ -241,7 +243,6 @@ pub struct OpenAICompatibleProvider {
 **新增文件**:
 | 文件 | 说明 |
 |------|------|
-| `app/src/ai/agent_sdk/driver/harness/openai_protocol.rs` | OpenAI API 协议 |
 | `crates/ai/src/providers.rs` | Provider 配置管理 |
 
 **修改文件**:
