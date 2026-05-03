@@ -1151,3 +1151,199 @@ impl super::HarnessRunner for GenericHarnessRunner {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_default_config() {
+        let config = GenericProviderConfig::default();
+        assert_eq!(config.name, "Ollama");
+        assert_eq!(config.base_url, "http://localhost:11434");
+        assert!(config.api_key.is_none());
+        assert_eq!(config.default_model, "llama3");
+        assert!(config.streaming);
+    }
+
+    #[test]
+    fn test_openai_preset() {
+        let config = GenericProviderConfig::openai("sk-test".to_string());
+        assert_eq!(config.name, "OpenAI");
+        assert_eq!(config.base_url, "https://api.openai.com/v1");
+        assert_eq!(config.api_key, Some("sk-test".to_string()));
+        assert_eq!(config.default_model, "gpt-4");
+    }
+
+    #[test]
+    fn test_anthropic_preset() {
+        let config = GenericProviderConfig::anthropic("sk-ant-test".to_string());
+        assert_eq!(config.name, "Anthropic");
+        assert_eq!(config.base_url, "https://api.anthropic.com");
+        assert_eq!(config.api_key, Some("sk-ant-test".to_string()));
+        assert_eq!(config.default_model, "claude-sonnet-4-20250514");
+        assert!(config.is_anthropic());
+    }
+
+    #[test]
+    fn test_groq_preset() {
+        let config = GenericProviderConfig::groq("gsk_test".to_string());
+        assert_eq!(config.name, "Groq");
+        assert_eq!(config.base_url, "https://api.groq.com/openai/v1");
+    }
+
+    #[test]
+    fn test_custom_preset() {
+        let config = GenericProviderConfig::custom(
+            "MyProvider".to_string(),
+            "http://my.server:8080/v1".to_string(),
+            Some("key".to_string()),
+        );
+        assert_eq!(config.name, "MyProvider");
+        assert_eq!(config.base_url, "http://my.server:8080/v1");
+        assert_eq!(config.api_key, Some("key".to_string()));
+    }
+
+    #[test]
+    fn test_is_anthropic() {
+        let anthropic = GenericProviderConfig::anthropic("key".to_string());
+        assert!(anthropic.is_anthropic());
+
+        let openai = GenericProviderConfig::openai("key".to_string());
+        assert!(!openai.is_anthropic());
+    }
+
+    #[test]
+    fn test_config_serialization() {
+        let original = GenericProviderConfig {
+            name: "Test".to_string(),
+            base_url: "http://localhost:9999".to_string(),
+            api_key: Some("secret".to_string()),
+            default_model: "test-model".to_string(),
+            streaming: false,
+        };
+
+        let json = serde_json::to_string(&original).unwrap();
+        let deserialized: GenericProviderConfig = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(deserialized.name, original.name);
+        assert_eq!(deserialized.base_url, original.base_url);
+        assert_eq!(deserialized.api_key, original.api_key);
+        assert_eq!(deserialized.default_model, original.default_model);
+        assert_eq!(deserialized.streaming, original.streaming);
+    }
+
+    #[test]
+    fn test_config_save_load_roundtrip() {
+        let dir = std::env::temp_dir().join("warp_test_config");
+        std::fs::create_dir_all(&dir).ok();
+        let path = dir.join("test_config.json");
+
+        let original = GenericProviderConfig {
+            name: "RoundTrip".to_string(),
+            base_url: "http://localhost:1234".to_string(),
+            api_key: None,
+            default_model: "rt-model".to_string(),
+            streaming: true,
+        };
+
+        original.save_to_file(&path).unwrap();
+        let loaded = GenericProviderConfig::load_from_file(&path).unwrap();
+
+        assert_eq!(loaded.name, original.name);
+        assert_eq!(loaded.base_url, original.base_url);
+        assert_eq!(loaded.api_key, original.api_key);
+        assert_eq!(loaded.default_model, original.default_model);
+        assert_eq!(loaded.streaming, original.streaming);
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn test_harness_new() {
+        let config = GenericProviderConfig::default();
+        let harness = GenericHttpHarness::new(config);
+        assert!(harness.get_tools().is_empty());
+        assert!(!harness.has_tools());
+    }
+
+    #[test]
+    fn test_harness_with_tools() {
+        let config = GenericProviderConfig::default();
+        let tool = serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "test_tool",
+                "description": "A test tool",
+                "parameters": {}
+            }
+        });
+
+        let harness = GenericHttpHarness::new(config).with_tools(vec![tool.clone()]);
+        assert!(harness.has_tools());
+        assert_eq!(harness.get_tools().len(), 1);
+    }
+
+    #[test]
+    fn test_harness_add_tool() {
+        let config = GenericProviderConfig::default();
+        let mut harness = GenericHttpHarness::new(config);
+
+        let tool = serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "bash",
+                "description": "Run shell commands",
+                "parameters": {}
+            }
+        });
+
+        harness.add_tool(tool);
+        assert!(harness.has_tools());
+        assert_eq!(harness.get_tools().len(), 1);
+    }
+
+    #[test]
+    fn test_all_provider_presets() {
+        // Test all cloud provider presets
+        let providers = vec![
+            ("OpenAI", GenericProviderConfig::openai("key".to_string())),
+            (
+                "Anthropic",
+                GenericProviderConfig::anthropic("key".to_string()),
+            ),
+            ("Groq", GenericProviderConfig::groq("key".to_string())),
+            (
+                "Together AI",
+                GenericProviderConfig::together("key".to_string()),
+            ),
+            (
+                "Fireworks AI",
+                GenericProviderConfig::fireworks("key".to_string()),
+            ),
+            ("Mistral", GenericProviderConfig::mistral("key".to_string())),
+            (
+                "Perplexity",
+                GenericProviderConfig::perplexity("key".to_string()),
+            ),
+        ];
+
+        for (expected_name, config) in providers {
+            assert_eq!(config.name, expected_name, "Provider name mismatch");
+            assert!(!config.base_url.is_empty(), "Base URL should not be empty");
+            assert!(config.api_key.is_some(), "API key should be set");
+        }
+    }
+
+    #[test]
+    fn test_azure_preset() {
+        let config = GenericProviderConfig::azure(
+            "https://my-resource.openai.azure.com".to_string(),
+            "azure-key".to_string(),
+            "gpt-4-deployment".to_string(),
+        );
+        assert_eq!(config.name, "Azure OpenAI");
+        assert_eq!(config.default_model, "gpt-4-deployment");
+        assert!(config.base_url.contains("azure.com"));
+    }
+}
