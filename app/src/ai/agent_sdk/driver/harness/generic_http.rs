@@ -288,6 +288,27 @@ impl GenericProviderConfig {
         self.load_from_file(&path)
     }
 
+    /// Validate the configuration and return Ok if valid, or an error message.
+    pub fn validate(&self) -> Result<(), String> {
+        // Check base_url is not empty
+        if self.base_url.is_empty() {
+            return Err("Provider URL cannot be empty".to_string());
+        }
+
+        // Check base_url is a valid URL format
+        if !self.base_url.starts_with("http://") && !self.base_url.starts_with("https://") {
+            return Err("Provider URL must start with http:// or https://".to_string());
+        }
+
+        // Check model is not empty
+        if self.default_model.is_empty() {
+            return Err("Default model cannot be empty".to_string());
+        }
+
+        // Validate URL is reachable (optional - would need async)
+        Ok(())
+    }
+
     /// Create a configuration for OpenAI API.
     /// Requires an API key for authentication.
     pub fn openai(api_key: String) -> Self {
@@ -1597,5 +1618,63 @@ mod integration_tests {
         assert_eq!(restored.api_key, original.api_key);
         assert_eq!(restored.default_model, original.default_model);
         assert_eq!(restored.streaming, original.streaming);
+    }
+
+    #[test]
+    fn test_validate_valid_config() {
+        let config = GenericProviderConfig {
+            name: "Test".to_string(),
+            base_url: "http://localhost:11434".to_string(),
+            api_key: None,
+            default_model: "llama3".to_string(),
+            streaming: true,
+        };
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_validate_empty_url() {
+        let config = GenericProviderConfig {
+            name: "Test".to_string(),
+            base_url: "".to_string(),
+            api_key: None,
+            default_model: "llama3".to_string(),
+            streaming: true,
+        };
+        let result = config.validate();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Provider URL cannot be empty"));
+    }
+
+    #[test]
+    fn test_validate_invalid_url_scheme() {
+        let config = GenericProviderConfig {
+            name: "Test".to_string(),
+            base_url: "localhost:11434".to_string(),
+            api_key: None,
+            default_model: "llama3".to_string(),
+            streaming: true,
+        };
+        let result = config.validate();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("http:// or https://"));
+    }
+
+    #[test]
+    fn test_validate_empty_model() {
+        let config = GenericProviderConfig {
+            name: "Test".to_string(),
+            base_url: "http://localhost:11434".to_string(),
+            api_key: None,
+            default_model: "".to_string(),
+            streaming: true,
+        };
+        let result = config.validate();
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .contains("Default model cannot be empty")
+        );
     }
 }
