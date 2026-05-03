@@ -4,7 +4,7 @@
 >
 > **项目路径**: `/Users/louloulin/Documents/linchong/rust/warp`
 >
-> **计划版本**: 7.3 (实现完成)
+> **计划版本**: 7.4 (实现完成)
 >
 > **生成日期**: 2026-05-02
 >
@@ -16,7 +16,7 @@
 
 | 日期 | 版本 | 变更 |
 |------|------|------|
-| 2026-05-03 | 7.3 | 修复 --model 与 ModelArgs 冲突，改为 --llm-model |
+| 2026-05-03 | 7.4 | 更新文件清单，标记所有修改文件完成 |
 | 2026-05-03 | 7.2 | 添加配置验证 (validate) 方法及单元测试 |
 | 2026-05-03 | 7.1 | 补充 harness_display 集成 |
 | 2026-05-03 | 7.0 | 所有功能实现完成 |
@@ -241,26 +241,16 @@ pub struct OpenAICompatibleProvider {
 **新增文件**:
 | 文件 | 说明 |
 |------|------|
-| `app/src/ai/agent_sdk/driver/harness/generic_http.rs` | Generic HTTP Harness (~1100行) |
+| `app/src/ai/agent_sdk/driver/harness/generic_http.rs` | Generic HTTP Harness (~1600行) |
 
 **修改文件**:
 | 文件 | 修改 |
 |------|------|
 | `crates/warp_cli/src/agent.rs` | 添加 `Harness::Generic` 枚举 |
 | `app/src/ai/agent_sdk/driver/harness/mod.rs` | 注册 GenericHarness |
-
-### 🔲 待完成
-
-**新增文件**:
-| 文件 | 说明 |
-|------|------|
-| `crates/ai/src/providers.rs` | Provider 配置管理 |
-
-**修改文件**:
-| 文件 | 修改 |
-|------|------|
-| `crates/ai/src/api_keys.rs` | 添加 Provider 配置 |
-| `app/src/settings_view/ai_page.rs` | UI 配置 |
+| `app/src/ai/agent_sdk/mod.rs` | 添加 build_generic_harness_args |
+| `app/src/ai/harness_display.rs` | 添加 Generic harness 显示支持 |
+| `app/src/settings_view/ai_page.rs` | 添加 LocalLLMProviderWidget UI |
 
 ---
 
