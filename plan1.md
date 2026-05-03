@@ -4,7 +4,7 @@
 >
 > **项目路径**: `/Users/louloulin/Documents/linchong/rust/warp`
 >
-> **计划版本**: 7.4 (实现完成)
+> **计划版本**: 8.0 (代码完成，待本地构建验证)
 >
 > **生成日期**: 2026-05-02
 >
@@ -16,6 +16,7 @@
 
 | 日期 | 版本 | 变更 |
 |------|------|------|
+| 2026-05-03 | 8.0 | 添加 workspace exclude，rustfmt 格式化 |
 | 2026-05-03 | 7.4 | 更新文件清单，标记所有修改文件完成 |
 | 2026-05-03 | 7.2 | 添加配置验证 (validate) 方法及单元测试 |
 | 2026-05-03 | 7.1 | 补充 harness_display 集成 |
@@ -286,6 +287,70 @@ pub struct OpenAICompatibleProvider {
 | 工具调用格式 | 适配 OpenAI function calling |
 | 上下文管理 | 本地维护对话历史 |
 | 认证 | Bearer Token / API Key |
+
+---
+
+## 🔧 手动验证指南
+
+由于沙箱环境限制，构建和运行验证需要在本地手动完成。
+
+### 步骤 1: 初始化 warp-workflows
+
+```bash
+cd /Users/louloulin/Documents/linchong/rust/warp
+git submodule update --init --recursive
+# 或手动克隆:
+git clone --depth 1 --branch trunk https://github.com/warpdotdev/workflows.git crates/warp-workflows
+```
+
+### 步骤 2: 构建项目
+
+```bash
+cargo build --bin warp-oss
+```
+
+### 步骤 3: 启动本地 LLM
+
+**Ollama:**
+```bash
+ollama serve
+ollama pull llama3
+```
+
+**LM Studio:**
+```bash
+# 下载并启动 LM Studio
+# 加载模型 (如 llama3)
+```
+
+### 步骤 4: 测试 Generic Harness
+
+```bash
+# 测试基本对话
+./target/debug/warp-oss run -p "Hello, how are you?" --harness generic --llm-model llama3 --provider-url http://localhost:11434
+
+# 测试 OpenAI API
+./target/debug/warp-oss run -p "Hello" --harness generic --provider-url https://api.openai.com/v1 --api-key sk-xxx --llm-model gpt-4
+
+# 测试 Anthropic API
+./target/debug/warp-oss run -p "Hello" --harness generic --provider-url https://api.anthropic.com/v1 --api-key sk-xxx --llm-model claude-3-sonnet-20240229
+```
+
+### 步骤 5: 验证功能
+
+- [ ] 无登录使用 AI
+- [ ] Ollama 本地模型
+- [ ] LM Studio 本地模型
+- [ ] OpenAI API 调用
+- [ ] Anthropic API 调用
+- [ ] 流式响应显示
+- [ ] 工具调用 (function calling)
+
+### 已知限制
+
+- `crates/warp-workflows` 需要单独初始化 (git submodule)
+- 构建需要 Metal shaders (Xcode 开发者工具)
+- 网络代理环境可能需要配置
 
 ---
 
