@@ -267,6 +267,28 @@ impl GenericProviderConfig {
         }
     }
 
+    /// Create a configuration for Anthropic Claude API.
+    /// Uses Anthropic's native Messages API protocol.
+    pub fn anthropic(api_key: String) -> Self {
+        Self {
+            name: "Anthropic Claude".to_string(),
+            base_url: "https://api.anthropic.com".to_string(),
+            api_key: Some(api_key),
+            default_model: "claude-sonnet-4-20250514".to_string(),
+            streaming: true,
+        }
+    }
+
+    /// Check if this provider is Anthropic.
+    pub fn is_anthropic(&self) -> bool {
+        self.base_url.contains("anthropic.com")
+    }
+
+    /// Build the Anthropic API URL for messages endpoint.
+    fn anthropic_url(&self) -> String {
+        format!("{}/v1/messages", self.base_url.trim_end_matches('/'))
+    }
+
     /// Create a configuration for Fireworks AI.
     pub fn fireworks(api_key: String) -> Self {
         Self {
@@ -318,6 +340,54 @@ impl GenericProviderConfig {
 pub struct Message {
     pub role: String,
     pub content: String,
+}
+
+/// Anthropic Messages API request format.
+#[derive(Debug, Serialize)]
+struct AnthropicRequest {
+    model: String,
+    messages: Vec<AnthropicMessage>,
+    max_tokens: u32,
+    stream: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    system: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tools: Option<Vec<serde_json::Value>>,
+}
+
+#[derive(Debug, Serialize)]
+struct AnthropicMessage {
+    role: String,
+    content: String,
+}
+
+/// Anthropic streaming event types.
+#[derive(Debug, Deserialize)]
+struct AnthropicStreamEvent {
+    #[serde(rename = "type")]
+    event_type: String,
+    #[serde(default)]
+    content: Option<String>,
+    #[serde(default)]
+    index: Option<u32>,
+    #[serde(default)]
+    delta: Option<AnthropicDelta>,
+    #[serde(default)]
+    message: Option<AnthropicMessageContent>,
+}
+
+#[derive(Debug, Deserialize)]
+struct AnthropicDelta {
+    #[serde(default)]
+    text: Option<String>,
+    #[serde(rename = "type")]
+    delta_type: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct AnthropicMessageContent {
+    #[serde(default)]
+    content: Option<String>,
 }
 
 /// OpenAI Chat Completions request format.
@@ -437,6 +507,46 @@ impl GenericHttpHarness {
         }
     }
 
+    /// Add Anthropic-specific headers.
+    fn add_anthropic_headers(
+        &self,
+        req_builder: reqwest::RequestBuilder,
+    ) -> reqwest::RequestBuilder {
+        let mut req_builder = req_builder
+            .header("Content-Type", "application/json")
+            .header("anthropic-version", "2023-06-01");
+
+        if let Some(ref api_key) = self.config.api_key {
+            req_builder = req_builder.header("x-api-key", api_key);
+        }
+
+        req_builder
+    }
+
+    /// Build an Anthropic request from messages.
+    fn build_anthropic_request(
+        &self,
+        messages: Vec<Message>,
+        system_prompt: Option<&str>,
+    ) -> AnthropicRequest {
+        let anthropic_messages: Vec<AnthropicMessage> = messages
+            .into_iter()
+            .map(|m| AnthropicMessage {
+                role: m.role,
+                content: m.content,
+            })
+            .collect();
+
+        AnthropicRequest {
+            model: self.config.default_model.clone(),
+            messages: anthropic_messages,
+            max_tokens: 4096,
+            stream: self.config.streaming,
+            system: system_prompt.map(String::from),
+            tools: None,
+        }
+    }
+
     /// Execute a chat completion request.
     async fn chat(&self, prompt: &str) -> Result<ChatResponse, AgentDriverError> {
         let client = reqwest::Client::new();
@@ -494,6 +604,87 @@ impl GenericHttpHarness {
                 })?;
 
         Ok(chat_response)
+    }
+
+    /// Handle Anthropic streaming response (SSE).
+    async fn anthropic_stream_response(
+        &self,
+        req_builder: reqwest::RequestBuilder,
+        foreground: &ModelSpawner<crate::ai::agent_sdk::driver::AgentDriver>,
+    ) -> Result<CommandHandle, AgentDriverError> {
+        let response =
+            req_builder
+                .send()
+                .await
+                .map_err(|e| AgentDriverError::HarnessSetupFailed {
+                    harness: "anthropic".to_string(),
+                    reason: format!("Failed to connect to Anthropic API: {}", e),
+                })?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            return Err(AgentDriverError::HarnessSetupFailed {
+                harness: "anthropic".to_string(),
+                reason: format!("Anthropic API error {}: {}", status, body),
+            });
+        }
+
+        // Process Anthropic SSE stream
+        let mut stream = response.bytes_stream();
+        let mut accumulated_content = String::new();
+        let driver = self.terminal_driver.clone();
+
+        while let Some(chunk_result) = stream.next().await {
+            match chunk_result {
+                Ok(bytes) => {
+                    if let Ok(text) = String::from_utf8(bytes.to_vec()) {
+                        for line in text.lines() {
+                            if line.starts_with("data: ") {
+                                let data = &line[6..];
+                                if data == "[DONE]" {
+                                    break;
+                                }
+                                // Parse Anthropic streaming event
+                                if let Ok(event) =
+                                    serde_json::from_str::<AnthropicStreamEvent>(data)
+                                {
+                                    // Handle content block
+                                    if event.event_type == "content_block_delta" {
+                                        if let Some(delta) = event.delta {
+                                            if let Some(text) = delta.text {
+                                                accumulated_content.push_str(&text);
+                                                let _ = foreground
+                                                    .spawn({
+                                                        let driver = driver.clone();
+                                                        let text = text.clone();
+                                                        move |_, ctx| {
+                                                            driver
+                                                                .as_ref(ctx)
+                                                                .write_to_terminal(&text, ctx);
+                                                        }
+                                                    })
+                                                    .await;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    log::warn!("Anthropic stream error: {}", e);
+                    break;
+                }
+            }
+        }
+
+        Ok(CommandHandle {
+            inner: tokio::sync::oneshot::channel().0,
+            block_id: None,
+            conversation_id: None,
+        })
     }
 }
 
@@ -574,10 +765,6 @@ impl super::HarnessRunner for GenericHarnessRunner {
         foreground: &ModelSpawner<crate::ai::agent_sdk::driver::AgentDriver>,
     ) -> Result<CommandHandle, AgentDriverError> {
         let client = reqwest::Client::new();
-        let url = format!(
-            "{}/chat/completions",
-            self.config.base_url.trim_end_matches('/')
-        );
 
         // Build messages
         let mut messages = self.messages.clone();
@@ -585,6 +772,17 @@ impl super::HarnessRunner for GenericHarnessRunner {
             role: "user".to_string(),
             content: self.current_prompt.clone(),
         });
+
+        // Check if using Anthropic API
+        if self.config.is_anthropic() {
+            return self.anthropic_start(client, messages, foreground).await;
+        }
+
+        // Standard OpenAI-compatible request
+        let url = format!(
+            "{}/chat/completions",
+            self.config.base_url.trim_end_matches('/')
+        );
 
         let request = ChatRequest {
             model: self.config.default_model.clone(),
@@ -658,6 +856,106 @@ impl super::HarnessRunner for GenericHarnessRunner {
             .await;
 
         // Return a mock command handle (the command completed successfully)
+        Ok(CommandHandle {
+            inner: tokio::sync::oneshot::channel().0,
+            block_id: None,
+            conversation_id: None,
+        })
+    }
+
+    /// Handle Anthropic API request.
+    async fn anthropic_start(
+        &self,
+        client: reqwest::Client,
+        messages: Vec<Message>,
+        foreground: &ModelSpawner<crate::ai::agent_sdk::driver::AgentDriver>,
+    ) -> Result<CommandHandle, AgentDriverError> {
+        let url = self.config.anthropic_url();
+
+        // Extract system message if present
+        let (system_messages, other_messages): (Vec<_>, Vec<_>) =
+            messages.iter().partition(|m| m.role == "system");
+
+        let system_prompt = system_messages.first().map(|m| m.content.as_str());
+
+        let anthropic_messages: Vec<AnthropicMessage> = other_messages
+            .into_iter()
+            .cloned()
+            .map(|m| AnthropicMessage {
+                role: m.role,
+                content: m.content,
+            })
+            .collect();
+
+        let request = AnthropicRequest {
+            model: self.config.default_model.clone(),
+            messages: anthropic_messages,
+            max_tokens: 4096,
+            stream: self.config.streaming,
+            system: system_prompt.map(String::from),
+            tools: None,
+        };
+
+        let req_builder = client.post(&url).json(&request);
+        let req_builder = self.add_anthropic_headers(req_builder);
+
+        if self.config.streaming {
+            return self
+                .anthropic_stream_response(req_builder, foreground)
+                .await;
+        }
+
+        // Non-streaming response
+        let response =
+            req_builder
+                .send()
+                .await
+                .map_err(|e| AgentDriverError::HarnessSetupFailed {
+                    harness: "anthropic".to_string(),
+                    reason: format!("Failed to connect to Anthropic API: {}", e),
+                })?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            return Err(AgentDriverError::HarnessSetupFailed {
+                harness: "anthropic".to_string(),
+                reason: format!("Anthropic API error {}: {}", status, body),
+            });
+        }
+
+        #[derive(Deserialize)]
+        struct AnthropicResponse {
+            content: Vec<AnthropicResponseContent>,
+        }
+
+        #[derive(Deserialize)]
+        struct AnthropicResponseContent {
+            text: Option<String>,
+        }
+
+        let anthropic_resp: AnthropicResponse =
+            response
+                .json()
+                .await
+                .map_err(|e| AgentDriverError::HarnessSetupFailed {
+                    harness: "anthropic".to_string(),
+                    reason: format!("Failed to parse Anthropic response: {}", e),
+                })?;
+
+        let content = anthropic_resp
+            .content
+            .first()
+            .and_then(|c| c.text.clone())
+            .unwrap_or_default();
+
+        let driver = self.terminal_driver.clone();
+        let _ = foreground
+            .spawn(move |_, ctx| {
+                driver.as_ref(ctx).write_to_terminal(&content, ctx);
+            })
+            .await;
+
         Ok(CommandHandle {
             inner: tokio::sync::oneshot::channel().0,
             block_id: None,
