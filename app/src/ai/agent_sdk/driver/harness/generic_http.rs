@@ -178,6 +178,7 @@ struct ToolFunction {
 pub struct GenericHttpHarness {
     config: GenericProviderConfig,
     conversation_history: Vec<Message>,
+    tools: Vec<serde_json::Value>,
 }
 
 impl GenericHttpHarness {
@@ -185,7 +186,29 @@ impl GenericHttpHarness {
         Self {
             config,
             conversation_history: Vec::new(),
+            tools: Vec::new(),
         }
+    }
+
+    /// Set the tools available to the harness.
+    pub fn with_tools(mut self, tools: Vec<serde_json::Value>) -> Self {
+        self.tools = tools;
+        self
+    }
+
+    /// Add a tool to the harness.
+    pub fn add_tool(&mut self, tool: serde_json::Value) {
+        self.tools.push(tool);
+    }
+
+    /// Get the current tools.
+    pub fn get_tools(&self) -> &[serde_json::Value] {
+        &self.tools
+    }
+
+    /// Check if the harness has tools configured.
+    pub fn has_tools(&self) -> bool {
+        !self.tools.is_empty()
     }
 
     /// Build the HTTP request URL for chat completions.
@@ -319,6 +342,7 @@ impl ThirdPartyHarness for GenericHttpHarness {
             terminal_driver,
             messages,
             current_prompt: prompt.to_string(),
+            tools: self.tools.clone(),
         };
 
         Ok(Box::new(runner))
@@ -331,6 +355,7 @@ pub struct GenericHarnessRunner {
     terminal_driver: ModelHandle<TerminalDriver>,
     messages: Vec<Message>,
     current_prompt: String,
+    tools: Vec<serde_json::Value>,
 }
 
 #[async_trait]
@@ -356,7 +381,11 @@ impl super::HarnessRunner for GenericHarnessRunner {
             model: self.config.default_model.clone(),
             messages: messages.clone(),
             stream: self.config.streaming,
-            tools: None,
+            tools: if self.tools.is_empty() {
+                None
+            } else {
+                Some(self.tools.clone())
+            },
         };
 
         // Prepare request
@@ -487,6 +516,25 @@ impl super::HarnessRunner for GenericHarnessRunner {
                                                     }
                                                 })
                                                 .await;
+                                        }
+                                        // Handle tool calls in streaming response
+                                        if let Some(tool_calls) = &choice.delta.tool_calls {
+                                            for tool_call in tool_calls {
+                                                // Log tool call for now - actual execution would be handled
+                                                // by the harness runner's tool execution logic
+                                                log::info!(
+                                                    "Tool call: {} - {}",
+                                                    tool_call.id,
+                                                    tool_call.function.name
+                                                );
+                                            }
+                                        }
+                                        // Check for finish reason
+                                        if choice.finish_reason.is_some() {
+                                            log::debug!(
+                                                "Stream finished: {:?}",
+                                                choice.finish_reason
+                                            );
                                         }
                                     }
                                 }
