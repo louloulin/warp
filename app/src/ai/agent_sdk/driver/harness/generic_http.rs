@@ -49,6 +49,61 @@ impl Default for GenericProviderConfig {
     }
 }
 
+impl GenericProviderConfig {
+    /// Auto-detect available local LLM providers.
+    /// Checks common endpoints like Ollama and LM Studio.
+    pub async fn auto_detect() -> Option<Self> {
+        // Try Ollama first (most common)
+        if Self::check_ollama().await {
+            return Some(Self {
+                name: "Ollama".to_string(),
+                base_url: "http://localhost:11434".to_string(),
+                ..Default::default()
+            });
+        }
+
+        // Try LM Studio
+        if Self::check_lm_studio().await {
+            return Some(Self {
+                name: "LM Studio".to_string(),
+                base_url: "http://localhost:1234".to_string(),
+                default_model: "auto".to_string(),
+                ..Default::default()
+            });
+        }
+
+        None
+    }
+
+    /// Check if Ollama is running.
+    async fn check_ollama() -> bool {
+        let client = reqwest::Client::new();
+        match client
+            .get("http://localhost:11434/api/tags")
+            .timeout(std::time::Duration::from_secs(2))
+            .send()
+            .await
+        {
+            Ok(resp) => resp.status().is_success(),
+            Err(_) => false,
+        }
+    }
+
+    /// Check if LM Studio is running.
+    async fn check_lm_studio() -> bool {
+        let client = reqwest::Client::new();
+        match client
+            .get("http://localhost:1234/v1/models")
+            .timeout(std::time::Duration::from_secs(2))
+            .send()
+            .await
+        {
+            Ok(resp) => resp.status().is_success(),
+            Err(_) => false,
+        }
+    }
+}
+
 /// A message in the conversation history.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Message {
