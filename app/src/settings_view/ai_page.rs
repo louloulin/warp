@@ -1,4 +1,6 @@
 #[cfg(not(target_family = "wasm"))]
+use crate::ai::agent_sdk::driver::harness::generic_http::GenericProviderConfig;
+#[cfg(not(target_family = "wasm"))]
 use crate::ai::aws_credentials::refresh_aws_credentials;
 use crate::ai::blocklist::agent_view::agent_input_footer::editor::{
     AgentToolbarEditorMode, AgentToolbarInlineEditor,
@@ -1528,6 +1530,7 @@ impl AISettingsPageView {
             }
             Some(AISubpage::ThirdPartyCLIAgents) => {
                 widgets.push(Box::new(CLIAgentWidget::default()));
+                widgets.push(Box::new(LocalLLMProviderWidget::default()));
             }
         }
 
@@ -5707,6 +5710,123 @@ impl SettingsWidget for CLIAgentWidget {
                 ));
             }
         }
+
+        column.finish()
+    }
+}
+
+/// Widget for configuring Local LLM Providers (Ollama, LM Studio, etc.)
+#[derive(Default)]
+struct LocalLLMProviderWidget {}
+
+impl SettingsWidget for LocalLLMProviderWidget {
+    type View = AISettingsPageView;
+
+    fn search_terms(&self) -> &str {
+        "local llm ollama lm studio provider connection openai compatible"
+    }
+
+    fn render(
+        &self,
+        _view: &Self::View,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
+        let config = GenericProviderConfig::load().unwrap_or_default();
+        let is_any_ai_enabled = AISettings::as_ref(app).is_any_ai_enabled(app);
+
+        // Status indicator
+        let status_color = if config.base_url == "http://localhost:11434"
+            || config.base_url == "http://localhost:1234"
+            || config.base_url == "http://localhost:1337"
+            || config.base_url == "http://localhost:5000"
+        {
+            // Provider detected - would need async check
+            "(configure and test connection)"
+        } else {
+            "(not configured)"
+        };
+
+        let mut column = Flex::column()
+            .with_child(render_separator(appearance))
+            .with_child(
+                build_sub_header(
+                    appearance,
+                    "Local LLM Provider",
+                    Some(styles::header_font_color(is_any_ai_enabled, app)),
+                )
+                .with_padding_bottom(HEADER_PADDING)
+                .finish(),
+            );
+
+        // Provider info
+        let info_text = if config.name.is_empty() {
+            "No provider configured".to_string()
+        } else {
+            format!("{} @ {}", config.name, config.base_url)
+        };
+
+        let status_text = if config.default_model.is_empty() {
+            "Model: not set".to_string()
+        } else {
+            format!("Model: {}", config.default_model)
+        };
+
+        column.add_child(
+            Container::new(
+                Flex::column()
+                    .with_child(
+                        Text::new(&info_text)
+                            .with_font_size(CONTENT_FONT_SIZE)
+                            .with_font_color(styles::header_font_color(is_any_ai_enabled, app))
+                            .finish(),
+                    )
+                    .with_child(
+                        Text::new(&status_text)
+                            .with_font_size(CONTENT_FONT_SIZE - 1.0)
+                            .with_font_color(styles::description_font_color(true, app))
+                            .finish(),
+                    )
+                    .with_child(
+                        Text::new(status_color)
+                            .with_font_size(CONTENT_FONT_SIZE - 1.0)
+                            .with_font_color(styles::description_font_color(true, app))
+                            .finish(),
+                    )
+                    .finish(),
+            )
+            .with_margin_bottom(8.)
+            .finish(),
+        );
+
+        // Configuration info
+        let config_path = GenericProviderConfig::default_config_path()
+            .to_string_lossy()
+            .to_string();
+
+        column.add_child(
+            Container::new(
+                Text::new(&format!("Config: {}", config_path))
+                    .with_font_size(CONTENT_FONT_SIZE - 1.0)
+                    .with_font_color(styles::description_font_color(true, app))
+                    .finish(),
+            )
+            .with_margin_bottom(8.)
+            .finish(),
+        );
+
+        // Help text
+        let help_text = "To configure: Edit the config file or use `oz run --harness generic`";
+        column.add_child(
+            Container::new(
+                Text::new(help_text)
+                    .with_font_size(CONTENT_FONT_SIZE - 1.0)
+                    .with_font_color(styles::description_font_color(true, app))
+                    .finish(),
+            )
+            .with_margin_bottom(4.)
+            .finish(),
+        );
 
         column.finish()
     }
