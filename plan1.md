@@ -16,6 +16,7 @@
 
 | 日期 | 版本 | 变更 |
 |------|------|------|
+| 2026-05-03 | 5.5 | 添加 Jan/TextGenWebUI 检测 |
 | 2026-05-03 | 5.4 | 添加连接检查和模型列表 |
 | 2026-05-03 | 5.3 | 添加工具/函数调用支持 |
 | 2026-05-03 | 5.2 | 添加 Ollama/LM Studio 自动检测 |
@@ -192,19 +193,19 @@ pub struct OpenAICompatibleProvider {
 
 | 协议 | 状态 | 说明 |
 |------|------|------|
-| **OpenAI Chat Completions API** | 🔲 新增 | 标准 JSON API |
+| **OpenAI Chat Completions API** | ✅ 已实现 | 标准 JSON API |
 | **Anthropic Messages API** | 🔲 新增 | 直接调用 Claude |
-| **SSE (Server-Sent Events)** | 🔲 新增 | 流式响应 |
-| **JSON Stream** | 🔲 新增 | 增量 JSON |
+| **SSE (Server-Sent Events)** | ✅ 已实现 | 流式响应 |
+| **JSON Stream** | ✅ 已实现 | 增量 JSON |
 
 ### Provider 支持
 
 | Provider | 协议 | URL | 状态 |
 |----------|------|-----|------|
-| **Ollama** | OpenAI 兼容 | localhost:11434 | 🔲 |
-| **LM Studio** | OpenAI 兼容 | localhost:1234 | 🔲 |
-| **Jan** | OpenAI 兼容 | localhost:1337 | 🔲 |
-| **Text Generation WebUI** | OpenAI 兼容 | localhost:5000 | 🔲 |
+| **Ollama** | OpenAI 兼容 | localhost:11434 | ✅ |
+| **LM Studio** | OpenAI 兼容 | localhost:1234 | ✅ |
+| **Jan** | OpenAI 兼容 | localhost:1337 | ✅ |
+| **Text Generation WebUI** | OpenAI 兼容 | localhost:5000 | ✅ |
 | **OpenAI** | OpenAI API | api.openai.com | 🔲 |
 | **Anthropic** | Anthropic API | api.anthropic.com | 🔲 |
 | **Groq** | OpenAI 兼容 | api.groq.com | 🔲 |
