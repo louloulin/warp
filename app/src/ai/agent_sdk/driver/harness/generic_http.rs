@@ -221,6 +221,51 @@ impl GenericProviderConfig {
 
         Ok(models_resp.data.into_iter().map(|m| m.id).collect())
     }
+
+    /// Create a configuration for OpenAI API.
+    /// Requires an API key for authentication.
+    pub fn openai(api_key: String) -> Self {
+        Self {
+            name: "OpenAI".to_string(),
+            base_url: "https://api.openai.com".to_string(),
+            api_key: Some(api_key),
+            default_model: "gpt-4o".to_string(),
+            streaming: true,
+        }
+    }
+
+    /// Create a configuration for Groq API (free tier available).
+    pub fn groq(api_key: String) -> Self {
+        Self {
+            name: "Groq".to_string(),
+            base_url: "https://api.groq.com/openai/v1".to_string(),
+            api_key: Some(api_key),
+            default_model: "llama-3.1-70b-versatile".to_string(),
+            streaming: true,
+        }
+    }
+
+    /// Create a configuration for Together AI.
+    pub fn together(api_key: String) -> Self {
+        Self {
+            name: "Together AI".to_string(),
+            base_url: "https://api.together.ai/v1".to_string(),
+            api_key: Some(api_key),
+            default_model: "meta-llama/Llama-3-70b-chat-hf".to_string(),
+            streaming: true,
+        }
+    }
+
+    /// Create a configuration for a custom OpenAI-compatible API.
+    pub fn custom(name: String, base_url: String, api_key: Option<String>) -> Self {
+        Self {
+            name,
+            base_url,
+            api_key,
+            default_model: String::new(),
+            streaming: true,
+        }
+    }
 }
 
 /// A message in the conversation history.
