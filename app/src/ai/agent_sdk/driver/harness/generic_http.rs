@@ -266,6 +266,51 @@ impl GenericProviderConfig {
             streaming: true,
         }
     }
+
+    /// Create a configuration for Fireworks AI.
+    pub fn fireworks(api_key: String) -> Self {
+        Self {
+            name: "Fireworks AI".to_string(),
+            base_url: "https://api.fireworks.ai/inference/v1".to_string(),
+            api_key: Some(api_key),
+            default_model: "accounts/fireworks/models/llama-v3-70b-instruct".to_string(),
+            streaming: true,
+        }
+    }
+
+    /// Create a configuration for Mistral AI.
+    pub fn mistral(api_key: String) -> Self {
+        Self {
+            name: "Mistral".to_string(),
+            base_url: "https://api.mistral.ai/v1".to_string(),
+            api_key: Some(api_key),
+            default_model: "mistral-large-latest".to_string(),
+            streaming: true,
+        }
+    }
+
+    /// Create a configuration for Perplexity AI (Sonar models).
+    pub fn perplexity(api_key: String) -> Self {
+        Self {
+            name: "Perplexity".to_string(),
+            base_url: "https://api.perplexity.ai".to_string(),
+            api_key: Some(api_key),
+            default_model: "sonar".to_string(),
+            streaming: true,
+        }
+    }
+
+    /// Create a configuration for Azure OpenAI.
+    /// Note: Azure uses deployment names instead of model IDs.
+    pub fn azure(endpoint: String, api_key: String, deployment: String) -> Self {
+        Self {
+            name: "Azure OpenAI".to_string(),
+            base_url: endpoint,
+            api_key: Some(api_key),
+            default_model: deployment,
+            streaming: true,
+        }
+    }
 }
 
 /// A message in the conversation history.
