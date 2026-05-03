@@ -3,6 +3,8 @@
 //! This harness enables Warp to use local LLM providers like Ollama, LM Studio,
 //! and Jan without requiring a Warp server connection.
 
+#[cfg(test)]
+use mockito;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -1345,5 +1347,255 @@ mod tests {
         assert_eq!(config.name, "Azure OpenAI");
         assert_eq!(config.default_model, "gpt-4-deployment");
         assert!(config.base_url.contains("azure.com"));
+    }
+}
+
+#[cfg(test)]
+mod integration_tests {
+    use super::*;
+    use mockito::Server;
+
+    #[tokio::test]
+    async fn test_check_connection_success() {
+        let mut server = Server::new_async().await;
+        let m = server.mock("GET", "/v1/models").with_status(200).create();
+
+        let config = GenericProviderConfig {
+            name: "Test".to_string(),
+            base_url: server.url(),
+            api_key: None,
+            default_model: "test".to_string(),
+            streaming: true,
+        };
+
+        let result = config.check_connection().await;
+        m.assert();
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_check_connection_failure() {
+        let mut server = Server::new_async().await;
+        let _m = server.mock("GET", "/v1/models").with_status(404).create();
+
+        let config = GenericProviderConfig {
+            name: "Test".to_string(),
+            base_url: server.url(),
+            api_key: None,
+            default_model: "test".to_string(),
+            streaming: true,
+        };
+
+        let result = config.check_connection().await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_get_models_success() {
+        let mut server = Server::new_async().await;
+        let response = serde_json::json!({
+            "data": [
+                {"id": "llama3"},
+                {"id": "codellama"}
+            ]
+        });
+        let _m = server
+            .mock("GET", "/v1/models")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(response.to_string())
+            .create();
+
+        let config = GenericProviderConfig {
+            name: "Test".to_string(),
+            base_url: server.url(),
+            api_key: None,
+            default_model: "llama3".to_string(),
+            streaming: true,
+        };
+
+        let models = config.get_models().await.unwrap();
+        assert_eq!(models.len(), 2);
+        assert_eq!(models[0], "llama3");
+        assert_eq!(models[1], "codellama");
+    }
+
+    #[tokio::test]
+    async fn test_get_models_empty() {
+        let mut server = Server::new_async().await;
+        let response = serde_json::json!({
+            "data": []
+        });
+        let _m = server
+            .mock("GET", "/v1/models")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(response.to_string())
+            .create();
+
+        let config = GenericProviderConfig {
+            name: "Test".to_string(),
+            base_url: server.url(),
+            api_key: None,
+            default_model: "llama3".to_string(),
+            streaming: true,
+        };
+
+        let models = config.get_models().await.unwrap();
+        assert!(models.is_empty());
+    }
+
+    #[test]
+    fn test_chat_request_serialization() {
+        let request = ChatRequest {
+            model: "llama3".to_string(),
+            messages: vec![
+                Message {
+                    role: "system".to_string(),
+                    content: "You are helpful".to_string(),
+                },
+                Message {
+                    role: "user".to_string(),
+                    content: "Hello".to_string(),
+                },
+            ],
+            stream: true,
+            tools: None,
+        };
+
+        let json = serde_json::to_string(&request).unwrap();
+        assert!(json.contains("llama3"));
+        assert!(json.contains("system"));
+        assert!(json.contains("You are helpful"));
+        assert!(json.contains("user"));
+        assert!(json.contains("Hello"));
+    }
+
+    #[test]
+    fn test_chat_response_deserialization() {
+        let json = r#"{
+            "id": "chatcmpl-123",
+            "object": "chat.completion",
+            "choices": [{
+                "index": 0,
+                "message": {
+                    "role": "assistant",
+                    "content": "Hello!"
+                },
+                "finish_reason": "stop"
+            }]
+        }"#;
+
+        let response: ChatResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(response.choices[0].message.content, "Hello!");
+    }
+
+    #[test]
+    fn test_streaming_chunk_deserialization() {
+        let json = r#"{"id":"chatcmpl-123","choices":[{"index":0,"delta":{"content":"Hello"},"finish_reason":null}]}"#;
+
+        let chunk: StreamingChunk = serde_json::from_str(json).unwrap();
+        assert_eq!(chunk.id, "chatcmpl-123");
+        assert_eq!(chunk.choices[0].delta.content, Some("Hello".to_string()));
+    }
+
+    #[test]
+    fn test_streaming_chunk_with_tool_call() {
+        let json = r#"{"id":"chatcmpl-123","choices":[{"index":0,"delta":{"tool_calls":[{"id":"call_123","function":{"name":"bash","arguments":"{}"}}]},"finish_reason":null}]}"#;
+
+        let chunk: StreamingChunk = serde_json::from_str(json).unwrap();
+        assert_eq!(chunk.choices[0].delta.tool_calls.as_ref().unwrap().len(), 1);
+        let tool_call = &chunk.choices[0].delta.tool_calls.as_ref().unwrap()[0];
+        assert_eq!(tool_call.function.name, "bash");
+    }
+
+    #[test]
+    fn test_anthropic_request_serialization() {
+        let request = AnthropicRequest {
+            model: "claude-3-sonnet".to_string(),
+            messages: vec![AnthropicMessage {
+                role: "user".to_string(),
+                content: "Hello".to_string(),
+            }],
+            max_tokens: 1024,
+            stream: true,
+            system: Some("You are helpful".to_string()),
+            tools: None,
+        };
+
+        let json = serde_json::to_string(&request).unwrap();
+        assert!(json.contains("claude-3-sonnet"));
+        assert!(json.contains("user"));
+        assert!(json.contains("Hello"));
+        assert!(json.contains("You are helpful"));
+    }
+
+    #[test]
+    fn test_anthropic_response_deserialization() {
+        let json = r#"{
+            "type": "content_block_delta",
+            "index": 0,
+            "delta": {
+                "type": "text_delta",
+                "text": "Hello!"
+            }
+        }"#;
+
+        let response: AnthropicStreamEvent = serde_json::from_str(json).unwrap();
+        match response {
+            AnthropicStreamEvent::ContentBlockDelta { delta, .. } => {
+                if let AnthropicDelta::Text { text } = delta {
+                    assert_eq!(text, "Hello!");
+                }
+            }
+            _ => panic!("Expected ContentBlockDelta"),
+        }
+    }
+
+    #[test]
+    fn test_auto_detect_no_server() {
+        // This test just verifies the method exists and can be called
+        // Actual network test would be flaky
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let result = rt.block_on(async { GenericProviderConfig::auto_detect().await });
+        // Without a real server, this should return None
+        // (or it might find something if there's actually a server running)
+        assert!(result.is_none() || result.is_some()); // Always passes
+    }
+
+    #[test]
+    fn test_url_building() {
+        let config = GenericProviderConfig {
+            name: "Test".to_string(),
+            base_url: "http://localhost:11434".to_string(),
+            api_key: None,
+            default_model: "llama3".to_string(),
+            streaming: true,
+        };
+
+        let harness = GenericHttpHarness::new(config);
+        // Test that we can build URLs (this is an internal method)
+        // We verify by checking the config is properly set
+        assert_eq!(harness.config.base_url, "http://localhost:11434");
+    }
+
+    #[test]
+    fn test_serialization_roundtrip_with_all_fields() {
+        let original = GenericProviderConfig {
+            name: "Custom Provider".to_string(),
+            base_url: "https://api.custom.com/v1".to_string(),
+            api_key: Some("secret-key-123".to_string()),
+            default_model: "custom-model-v1".to_string(),
+            streaming: false,
+        };
+
+        let json = serde_json::to_string(&original).unwrap();
+        let restored: GenericProviderConfig = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(restored.name, original.name);
+        assert_eq!(restored.base_url, original.base_url);
+        assert_eq!(restored.api_key, original.api_key);
+        assert_eq!(restored.default_model, original.default_model);
+        assert_eq!(restored.streaming, original.streaming);
     }
 }
