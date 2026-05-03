@@ -44,6 +44,7 @@ pub(crate) use claude_code::ClaudeHarness;
 use claude_transcript::ClaudeResumeInfo;
 use gemini::GeminiHarness;
 pub(crate) use generic_http::GenericHttpHarness;
+pub use generic_http::GenericProviderConfig;
 
 /// Harness-agnostic payload describing how to resume an existing conversation.
 ///
@@ -163,20 +164,51 @@ impl fmt::Debug for HarnessKind {
 ///
 /// We shouldn't ever get a `--harness unknown` here because clap should handle
 /// it.
-pub(crate) fn harness_kind(harness: Harness) -> Result<HarnessKind, AgentDriverError> {
+pub(crate) fn harness_kind(
+    harness: Harness,
+    generic_args: Option<GenericHarnessArgs>,
+) -> Result<HarnessKind, AgentDriverError> {
     match harness {
         Harness::Oz => Ok(HarnessKind::Oz),
         Harness::Claude => Ok(HarnessKind::ThirdParty(Box::new(ClaudeHarness))),
         Harness::OpenCode => Ok(HarnessKind::Unsupported(Harness::OpenCode)),
         Harness::Gemini => Ok(HarnessKind::ThirdParty(Box::new(GeminiHarness))),
         Harness::Generic => {
-            // Use default config for Generic harness
-            let config = generic_http::GenericProviderConfig::default();
+            // Build config from CLI args or default
+            let config = match generic_args {
+                Some(args) => args.into_config(),
+                None => generic_http::GenericProviderConfig::load().unwrap_or_default(),
+            };
             Ok(HarnessKind::ThirdParty(Box::new(GenericHttpHarness::new(
                 config,
             ))))
         }
         Harness::Unknown => Err(AgentDriverError::InvalidRuntimeState),
+    }
+}
+
+/// CLI arguments for the Generic harness.
+#[derive(Default)]
+pub(crate) struct GenericHarnessArgs {
+    pub provider_url: Option<String>,
+    pub api_key: Option<String>,
+    pub model: Option<String>,
+}
+
+impl GenericHarnessArgs {
+    /// Convert CLI args into a GenericProviderConfig.
+    pub fn into_config(self) -> generic_http::GenericProviderConfig {
+        let mut config = if let Some(url) = self.provider_url {
+            generic_http::GenericProviderConfig::custom("Custom".to_string(), url, self.api_key)
+        } else {
+            generic_http::GenericProviderConfig::default()
+        };
+
+        if let Some(model) = self.model {
+            config.default_model = model;
+        }
+
+        config
     }
 }
 

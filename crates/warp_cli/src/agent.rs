@@ -214,6 +214,11 @@ pub enum AgentCommand {
             .required(true)
             .multiple(true)
             .args(["prompt", "saved_prompt", "task_id", "skill"])
+    ),
+    group(
+        clap::ArgGroup::new("harness_generic")
+            .multiple(false)
+            .args(["provider_url", "api_key", "model"])
     )
 )]
 pub struct RunAgentArgs {
@@ -309,8 +314,27 @@ pub struct RunAgentArgs {
     ///
     /// "oz" (default) uses Warp's built-in agent infrastructure.
     /// "claude" delegates to the `claude` CLI.
+    /// "generic" uses a custom OpenAI-compatible provider.
     #[arg(long = "harness", value_name = "HARNESS", default_value_t = Harness::Oz, hide = true)]
     pub harness: Harness,
+
+    /// OpenAI-compatible API base URL (for --harness generic).
+    /// Example: http://localhost:11434, https://api.openai.com/v1
+    #[arg(
+        long = "provider-url",
+        value_name = "URL",
+        requires = "harness_generic"
+    )]
+    pub provider_url: Option<String>,
+
+    /// API key for the provider (for --harness generic).
+    #[arg(long = "api-key", value_name = "KEY", requires = "harness_generic")]
+    pub api_key: Option<String>,
+
+    /// Default model to use (for --harness generic).
+    /// Example: llama3, gpt-4, claude-3-sonnet
+    #[arg(long = "model", value_name = "MODEL", requires = "harness_generic")]
+    pub model: Option<String>,
 }
 
 impl RunAgentArgs {

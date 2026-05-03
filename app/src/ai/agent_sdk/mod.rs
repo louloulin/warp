@@ -312,6 +312,20 @@ fn run_agent(
     }
 }
 
+/// Build GenericHarnessArgs from RunAgentArgs.
+fn build_generic_harness_args(
+    args: &RunAgentArgs,
+) -> Option<crate::ai::agent_sdk::driver::harness::GenericHarnessArgs> {
+    if args.provider_url.is_none() && args.api_key.is_none() && args.model.is_none() {
+        return None;
+    }
+    Some(crate::ai::agent_sdk::driver::harness::GenericHarnessArgs {
+        provider_url: args.provider_url.clone(),
+        api_key: args.api_key.clone(),
+        model: args.model.clone(),
+    })
+}
+
 /// Build the merged agent configuration from all sources and the Task for the driver.
 /// Merge precedence: file < CLI < skill
 fn build_merged_config_and_task(
@@ -400,7 +414,7 @@ fn build_merged_config_and_task(
         model: model_override,
         profile: args.profile.clone(),
         mcp_specs: runtime_mcp_specs,
-        harness: harness_kind(args.harness)?,
+        harness: harness_kind(args.harness, build_generic_harness_args(args))?,
     };
 
     Ok((merged_config, task))
@@ -460,7 +474,7 @@ fn build_server_side_task(
         model: model_override,
         profile,
         mcp_specs: runtime_mcp_specs,
-        harness: harness_kind(args.harness)?,
+        harness: harness_kind(args.harness, build_generic_harness_args(args))?,
     };
 
     Ok((config, task))
