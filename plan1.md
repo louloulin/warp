@@ -16,6 +16,7 @@
 
 | 日期 | 版本 | 变更 |
 |------|------|------|
+| 2026-05-03 | 5.4 | 添加连接检查和模型列表 |
 | 2026-05-03 | 5.3 | 添加工具/函数调用支持 |
 | 2026-05-03 | 5.2 | 添加 Ollama/LM Studio 自动检测 |
 | 2026-05-03 | 5.1 | 添加 SSE 流式响应支持 |
@@ -125,6 +126,7 @@ warp_multi_agent_api::ResponseEvent::decode(decoded_data.as_slice())
 | SSE 流式响应 | StreamingDelta/Chunk | ✅ 2026-05-03 |
 | Provider 自动检测 | Ollama/LM Studio | ✅ 2026-05-03 |
 | 工具调用支持 | with_tools/add_tool | ✅ 2026-05-03 |
+| 连接检查/模型列表 | check_connection/get_models | ✅ 2026-05-03 |
 
 ### 🔲 待完成
 
