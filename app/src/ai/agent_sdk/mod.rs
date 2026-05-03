@@ -7,12 +7,12 @@ use std::path::Path;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use crate::ai::agent::api::convert_conversation::{
-    convert_conversation_data_to_ai_conversation, RestorationMode,
-};
 use crate::ai::agent::api::ServerConversationToken;
+use crate::ai::agent::api::convert_conversation::{
+    RestorationMode, convert_conversation_data_to_ai_conversation,
+};
 use crate::ai::agent::conversation::AIConversationId;
-use crate::ai::agent_sdk::driver::harness::{harness_kind, HarnessKind};
+use crate::ai::agent_sdk::driver::harness::{HarnessKind, harness_kind};
 use crate::ai::agent_sdk::driver::{AgentDriverOptions, AgentRunPrompt, Task};
 use crate::ai::agent_sdk::mcp_config::build_mcp_servers_from_specs;
 #[cfg(not(target_family = "wasm"))]
@@ -25,6 +25,7 @@ use crate::workflows::workflow::Workflow;
 use ai::api_keys::{ApiKeyManager, AwsCredentialsRefreshStrategy};
 use anyhow::Context;
 use warp_cli::{
+    CliCommand, GlobalOptions,
     agent::{AgentCommand, AgentProfileCommand, OutputFormat},
     artifact::ArtifactCommand,
     environment::{EnvironmentCommand, ImageCommand},
@@ -38,7 +39,6 @@ use warp_cli::{
     secret::SecretCommand,
     share::ShareRequest,
     task::{MessageCommand, TaskCommand},
-    CliCommand, GlobalOptions,
 };
 use warp_core::features::FeatureFlag;
 use warp_isolation_platform::IsolationPlatformError;
@@ -46,16 +46,16 @@ use warp_isolation_platform::IsolationPlatformError;
 use warp_logging::log_file_path;
 use warp_managed_secrets::ManagedSecretManager;
 use warpui::ModelSpawner;
-use warpui::{platform::TerminationMode, AppContext, SingletonEntity};
+use warpui::{AppContext, SingletonEntity, platform::TerminationMode};
 
 use crate::{
-    ai::ambient_agents::{task::HarnessConfig, AmbientAgentTaskId},
+    ai::ambient_agents::{AmbientAgentTaskId, task::HarnessConfig},
     ai::cloud_environments::CloudAmbientAgentEnvironment,
     auth::AuthStateProvider,
     send_telemetry_sync_from_app_ctx,
     server::{
         ids::{ServerId, SyncId},
-        server_api::{ai::AgentConfigSnapshot, ServerApiProvider},
+        server_api::{ServerApiProvider, ai::AgentConfigSnapshot},
     },
     terminal::view::ConversationRestorationInNewPaneType,
 };
@@ -64,16 +64,16 @@ use warp_graphql::object_permissions::OwnerType;
 
 use crate::ai::attachment_utils::attachments_download_dir;
 use crate::ai::skills::{
-    clone_repo_for_skill, resolve_skill_spec, ResolveSkillError, ResolvedSkill,
+    ResolveSkillError, ResolvedSkill, clone_repo_for_skill, resolve_skill_spec,
 };
 
-pub(crate) use driver::harness::{
-    task_env_vars, validate_cli_installed, ClaudeHarness, ThirdPartyHarness,
-};
 pub use driver::AgentDriver;
+pub(crate) use driver::harness::{
+    ClaudeHarness, ThirdPartyHarness, task_env_vars, validate_cli_installed,
+};
 use telemetry::CliTelemetryEvent;
-use warp_cli::agent::{Harness, Prompt, RunAgentArgs};
 use warp_cli::OZ_HARNESS_ENV;
+use warp_cli::agent::{Harness, Prompt, RunAgentArgs};
 
 mod admin;
 mod agent_config;
@@ -316,13 +316,13 @@ fn run_agent(
 fn build_generic_harness_args(
     args: &RunAgentArgs,
 ) -> Option<crate::ai::agent_sdk::driver::harness::GenericHarnessArgs> {
-    if args.provider_url.is_none() && args.api_key.is_none() && args.model.is_none() {
+    if args.provider_url.is_none() && args.api_key.is_none() && args.llm_model.is_none() {
         return None;
     }
     Some(crate::ai::agent_sdk::driver::harness::GenericHarnessArgs {
         provider_url: args.provider_url.clone(),
         api_key: args.api_key.clone(),
-        model: args.model.clone(),
+        model: args.llm_model.clone(),
     })
 }
 

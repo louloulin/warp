@@ -218,7 +218,7 @@ pub enum AgentCommand {
     group(
         clap::ArgGroup::new("harness_generic")
             .multiple(false)
-            .args(["provider_url", "api_key", "model"])
+            .args(["provider_url", "api_key", "llm_model"])
     )
 )]
 pub struct RunAgentArgs {
@@ -333,8 +333,8 @@ pub struct RunAgentArgs {
 
     /// Default model to use (for --harness generic).
     /// Example: llama3, gpt-4, claude-3-sonnet
-    #[arg(long = "model", value_name = "MODEL", requires = "harness_generic")]
-    pub model: Option<String>,
+    #[arg(long = "llm-model", value_name = "MODEL", requires = "harness_generic")]
+    pub llm_model: Option<String>,
 }
 
 impl RunAgentArgs {
