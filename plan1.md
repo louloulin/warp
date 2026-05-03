@@ -4,7 +4,7 @@
 >
 > **项目路径**: `/Users/louloulin/Documents/linchong/rust/warp`
 >
-> **计划版本**: 7.1 (实现完成)
+> **计划版本**: 7.2 (实现完成)
 >
 > **生成日期**: 2026-05-02
 >
@@ -16,6 +16,7 @@
 
 | 日期 | 版本 | 变更 |
 |------|------|------|
+| 2026-05-03 | 7.2 | 添加配置验证 (validate) 方法及单元测试 |
 | 2026-05-03 | 7.1 | 补充 harness_display 集成 |
 | 2026-05-03 | 7.0 | 所有功能实现完成 |
 | 2026-05-03 | 6.4 | 添加集成测试 (mockito) |
@@ -142,6 +143,7 @@ warp_multi_agent_api::ResponseEvent::decode(decoded_data.as_slice())
 | 单元测试 | Config/Harness 测试 | ✅ 2026-05-03 |
 | 集成测试 | mockito HTTP mock 测试 | ✅ 2026-05-03 |
 | UI 集成 | harness_display.rs | ✅ 2026-05-03 |
+| 配置验证 | validate() 方法 | ✅ 2026-05-03 |
 
 ### 🔲 待完成 (手动测试)
 
@@ -270,6 +272,7 @@ pub struct OpenAICompatibleProvider {
 - [x] Anthropic 直接 API 支持
 - [x] Provider 配置 UI
 - [x] 集成测试 (mockito)
+- [x] 配置验证 (validate)
 - [ ] Ollama 实际环境测试
 
 ---
