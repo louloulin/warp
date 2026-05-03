@@ -51,7 +51,7 @@ impl Default for GenericProviderConfig {
 
 impl GenericProviderConfig {
     /// Auto-detect available local LLM providers.
-    /// Checks common endpoints like Ollama and LM Studio.
+    /// Checks common endpoints in order of popularity.
     pub async fn auto_detect() -> Option<Self> {
         // Try Ollama first (most common)
         if Self::check_ollama().await {
@@ -67,6 +67,25 @@ impl GenericProviderConfig {
             return Some(Self {
                 name: "LM Studio".to_string(),
                 base_url: "http://localhost:1234".to_string(),
+                default_model: "auto".to_string(),
+                ..Default::default()
+            });
+        }
+
+        // Try Jan
+        if Self::check_jan().await {
+            return Some(Self {
+                name: "Jan".to_string(),
+                base_url: "http://localhost:1337".to_string(),
+                ..Default::default()
+            });
+        }
+
+        // Try Text Generation WebUI
+        if Self::check_textgen_webui().await {
+            return Some(Self {
+                name: "Text Generation WebUI".to_string(),
+                base_url: "http://localhost:5000".to_string(),
                 default_model: "auto".to_string(),
                 ..Default::default()
             });
@@ -94,6 +113,34 @@ impl GenericProviderConfig {
         let client = reqwest::Client::new();
         match client
             .get("http://localhost:1234/v1/models")
+            .timeout(std::time::Duration::from_secs(2))
+            .send()
+            .await
+        {
+            Ok(resp) => resp.status().is_success(),
+            Err(_) => false,
+        }
+    }
+
+    /// Check if Jan is running.
+    async fn check_jan() -> bool {
+        let client = reqwest::Client::new();
+        match client
+            .get("http://localhost:1337/v1/models")
+            .timeout(std::time::Duration::from_secs(2))
+            .send()
+            .await
+        {
+            Ok(resp) => resp.status().is_success(),
+            Err(_) => false,
+        }
+    }
+
+    /// Check if Text Generation WebUI is running.
+    async fn check_textgen_webui() -> bool {
+        let client = reqwest::Client::new();
+        match client
+            .get("http://localhost:5000/v1/models")
             .timeout(std::time::Duration::from_secs(2))
             .send()
             .await
