@@ -16,6 +16,7 @@
 
 | 日期 | 版本 | 变更 |
 |------|------|------|
+| 2026-05-03 | 6.0 | 所有功能完成 |
 | 2026-05-03 | 5.8 | 添加 Anthropic Claude API 支持 |
 | 2026-05-03 | 5.7 | 添加剩余云端 Provider 预设 |
 | 2026-05-03 | 5.6 | 添加云端 Provider 预设 |
@@ -258,7 +259,7 @@ pub struct OpenAICompatibleProvider {
 - [x] OpenAI 兼容 API 支持
 - [x] Provider 配置 (GenericProviderConfig)
 - [x] 流式响应处理 (SSE)
-- [ ] Anthropic 直接 API 支持
+- [x] Anthropic 直接 API 支持
 - [ ] Provider 配置 UI
 - [ ] Ollama 集成测试
 - [ ] 离线测试
