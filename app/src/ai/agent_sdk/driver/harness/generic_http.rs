@@ -1671,10 +1671,8 @@ mod integration_tests {
         };
         let result = config.validate();
         assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .contains("Default model cannot be empty")
-        );
+        assert!(result
+            .unwrap_err()
+            .contains("Default model cannot be empty"));
     }
 }

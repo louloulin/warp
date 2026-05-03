@@ -3,6 +3,9 @@ members = [
   "crates/*",
   "app",
 ]
+exclude = [
+  "crates/warp-workflows",
+]
 resolver = "2"
 
 # Include all members except serve-wasm (since it's a helper helper for serving
