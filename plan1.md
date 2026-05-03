@@ -16,6 +16,7 @@
 
 | 日期 | 版本 | 变更 |
 |------|------|------|
+| 2026-05-03 | 5.6 | 添加云端 Provider 预设 |
 | 2026-05-03 | 5.5 | 添加 Jan/TextGenWebUI 检测 |
 | 2026-05-03 | 5.4 | 添加连接检查和模型列表 |
 | 2026-05-03 | 5.3 | 添加工具/函数调用支持 |
@@ -206,10 +207,10 @@ pub struct OpenAICompatibleProvider {
 | **LM Studio** | OpenAI 兼容 | localhost:1234 | ✅ |
 | **Jan** | OpenAI 兼容 | localhost:1337 | ✅ |
 | **Text Generation WebUI** | OpenAI 兼容 | localhost:5000 | ✅ |
-| **OpenAI** | OpenAI API | api.openai.com | 🔲 |
+| **OpenAI** | OpenAI API | api.openai.com | ✅ |
 | **Anthropic** | Anthropic API | api.anthropic.com | 🔲 |
-| **Groq** | OpenAI 兼容 | api.groq.com | 🔲 |
-| **Together AI** | OpenAI 兼容 | api.together.xyz | 🔲 |
+| **Groq** | OpenAI 兼容 | api.groq.com | ✅ |
+| **Together AI** | OpenAI 兼容 | api.together.xyz | ✅ |
 | **Fireworks AI** | OpenAI 兼容 | api.fireworks.ai | 🔲 |
 | **Mistral** | OpenAI 兼容 | api.mistral.ai | 🔲 |
 | **Perplexity** | OpenAI 兼容 | api.perplexity.ai | 🔲 |
