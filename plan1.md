@@ -16,6 +16,7 @@
 
 | 日期 | 版本 | 变更 |
 |------|------|------|
+| 2026-05-03 | 5.7 | 添加剩余云端 Provider 预设 |
 | 2026-05-03 | 5.6 | 添加云端 Provider 预设 |
 | 2026-05-03 | 5.5 | 添加 Jan/TextGenWebUI 检测 |
 | 2026-05-03 | 5.4 | 添加连接检查和模型列表 |
@@ -211,10 +212,10 @@ pub struct OpenAICompatibleProvider {
 | **Anthropic** | Anthropic API | api.anthropic.com | 🔲 |
 | **Groq** | OpenAI 兼容 | api.groq.com | ✅ |
 | **Together AI** | OpenAI 兼容 | api.together.xyz | ✅ |
-| **Fireworks AI** | OpenAI 兼容 | api.fireworks.ai | 🔲 |
-| **Mistral** | OpenAI 兼容 | api.mistral.ai | 🔲 |
-| **Perplexity** | OpenAI 兼容 | api.perplexity.ai | 🔲 |
-| **Azure OpenAI** | OpenAI 兼容 | *.azurewebsites.net | 🔲 |
+| **Fireworks AI** | OpenAI 兼容 | api.fireworks.ai | ✅ |
+| **Mistral** | OpenAI 兼容 | api.mistral.ai | ✅ |
+| **Perplexity** | OpenAI 兼容 | api.perplexity.ai | ✅ |
+| **Azure OpenAI** | OpenAI 兼容 | *.azurewebsites.net | ✅ |
 
 ---
 
