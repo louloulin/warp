@@ -4,7 +4,7 @@
 //! and Jan without requiring a Warp server connection.
 
 use std::collections::HashMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -220,6 +220,70 @@ impl GenericProviderConfig {
                 })?;
 
         Ok(models_resp.data.into_iter().map(|m| m.id).collect())
+    }
+
+    /// Save this configuration to a JSON file.
+    pub fn save_to_file(&self, path: &Path) -> Result<(), AgentDriverError> {
+        let json = serde_json::to_string_pretty(self).map_err(|e| {
+            AgentDriverError::ConfigBuildFailed(anyhow::anyhow!(
+                "Failed to serialize config: {}",
+                e
+            ))
+        })?;
+
+        std::fs::write(path, json).map_err(|e| {
+            AgentDriverError::ConfigBuildFailed(anyhow::anyhow!(
+                "Failed to write config file: {}",
+                e
+            ))
+        })?;
+
+        Ok(())
+    }
+
+    /// Load a configuration from a JSON file.
+    pub fn load_from_file(path: &Path) -> Result<Self, AgentDriverError> {
+        let json = std::fs::read_to_string(path).map_err(|e| {
+            AgentDriverError::ConfigBuildFailed(anyhow::anyhow!(
+                "Failed to read config file: {}",
+                e
+            ))
+        })?;
+
+        serde_json::from_str(&json).map_err(|e| {
+            AgentDriverError::ConfigBuildFailed(anyhow::anyhow!(
+                "Failed to parse config file: {}",
+                e
+            ))
+        })
+    }
+
+    /// Get the default config file path.
+    pub fn default_config_path() -> PathBuf {
+        dirs::config_dir()
+            .unwrap_or_else(|| PathBuf::from("."))
+            .join("warp")
+            .join("generic_ai_config.json")
+    }
+
+    /// Save this configuration to the default config file.
+    pub fn save(&self) -> Result<(), AgentDriverError> {
+        let path = Self::default_config_path();
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| {
+                AgentDriverError::ConfigBuildFailed(anyhow::anyhow!(
+                    "Failed to create config directory: {}",
+                    e
+                ))
+            })?;
+        }
+        self.save_to_file(&path)
+    }
+
+    /// Load configuration from the default config file.
+    pub fn load() -> Result<Self, AgentDriverError> {
+        let path = Self::default_config_path();
+        self.load_from_file(&path)
     }
 
     /// Create a configuration for OpenAI API.
