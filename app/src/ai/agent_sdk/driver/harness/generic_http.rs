@@ -102,6 +102,78 @@ impl GenericProviderConfig {
             Err(_) => false,
         }
     }
+
+    /// Check if this provider is reachable.
+    /// Returns Ok(()) if the connection is successful.
+    pub async fn check_connection(&self) -> Result<(), AgentDriverError> {
+        let client = reqwest::Client::new();
+        let url = format!("{}/v1/models", self.base_url.trim_end_matches('/'));
+
+        client
+            .get(&url)
+            .timeout(std::time::Duration::from_secs(5))
+            .send()
+            .await
+            .map_err(|e| AgentDriverError::HarnessSetupFailed {
+                harness: "generic".to_string(),
+                reason: format!(
+                    "Failed to connect to {} at {}. Error: {}. Is the server running?",
+                    self.name, url, e
+                ),
+            })?
+            .error_for_status()
+            .map_err(|e| AgentDriverError::HarnessSetupFailed {
+                harness: "generic".to_string(),
+                reason: format!("{} at {} returned error: {}", self.name, url, e),
+            })?;
+
+        Ok(())
+    }
+
+    /// Get available models from the provider.
+    pub async fn get_models(&self) -> Result<Vec<String>, AgentDriverError> {
+        let client = reqwest::Client::new();
+        let url = format!("{}/v1/models", self.base_url.trim_end_matches('/'));
+
+        let response = client
+            .get(&url)
+            .timeout(std::time::Duration::from_secs(5))
+            .send()
+            .await
+            .map_err(|e| AgentDriverError::HarnessSetupFailed {
+                harness: "generic".to_string(),
+                reason: format!("Failed to fetch models from {}: {}", url, e),
+            })?;
+
+        if !response.status().is_success() {
+            return Err(AgentDriverError::HarnessSetupFailed {
+                harness: "generic".to_string(),
+                reason: format!("Failed to fetch models: status {}", response.status()),
+            });
+        }
+
+        // Parse the models list (OpenAI-compatible format)
+        #[derive(Deserialize)]
+        struct ModelsResponse {
+            data: Vec<ModelInfo>,
+        }
+
+        #[derive(Deserialize)]
+        struct ModelInfo {
+            id: String,
+        }
+
+        let models_resp: ModelsResponse =
+            response
+                .json()
+                .await
+                .map_err(|e| AgentDriverError::HarnessSetupFailed {
+                    harness: "generic".to_string(),
+                    reason: format!("Failed to parse models response: {}", e),
+                })?;
+
+        Ok(models_resp.data.into_iter().map(|m| m.id).collect())
+    }
 }
 
 /// A message in the conversation history.
