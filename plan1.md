@@ -16,6 +16,7 @@
 
 | 日期 | 版本 | 变更 |
 |------|------|------|
+| 2026-05-03 | 5.3 | 添加工具/函数调用支持 |
 | 2026-05-03 | 5.2 | 添加 Ollama/LM Studio 自动检测 |
 | 2026-05-03 | 5.1 | 添加 SSE 流式响应支持 |
 | 2026-05-02 | 5.0 | 实现 GenericHarness + OpenAI 协议 |
@@ -123,6 +124,7 @@ warp_multi_agent_api::ResponseEvent::decode(decoded_data.as_slice())
 | Provider 配置 | `GenericProviderConfig` | ✅ 2026-05-02 |
 | SSE 流式响应 | StreamingDelta/Chunk | ✅ 2026-05-03 |
 | Provider 自动检测 | Ollama/LM Studio | ✅ 2026-05-03 |
+| 工具调用支持 | with_tools/add_tool | ✅ 2026-05-03 |
 
 ### 🔲 待完成
 
