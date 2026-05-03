@@ -4,7 +4,7 @@
 >
 > **项目路径**: `/Users/louloulin/Documents/linchong/rust/warp`
 >
-> **计划版本**: 6.1 (实现中)
+> **计划版本**: 6.2 (实现中)
 >
 > **生成日期**: 2026-05-02
 >
@@ -16,6 +16,7 @@
 
 | 日期 | 版本 | 变更 |
 |------|------|------|
+| 2026-05-03 | 6.2 | 添加 Local LLM Provider 设置 UI |
 | 2026-05-03 | 6.1 | 添加配置持久化 (save/load) |
 | 2026-05-03 | 6.0 | 所有功能完成 |
 | 2026-05-03 | 5.8 | 添加 Anthropic Claude API 支持 |
@@ -134,12 +135,12 @@ warp_multi_agent_api::ResponseEvent::decode(decoded_data.as_slice())
 | 工具调用支持 | with_tools/add_tool | ✅ 2026-05-03 |
 | 连接检查/模型列表 | check_connection/get_models | ✅ 2026-05-03 |
 | 配置持久化 | save/load 方法 | ✅ 2026-05-03 |
+| Provider 配置 UI | LocalLLMProviderWidget | ✅ 2026-05-03 |
 
 ### 🔲 待完成
 
 | 组件 | 说明 |
 |------|------|
-| **Provider 配置 UI** | 用户配置界面 |
 | **集成测试** | Ollama 集成测试 |
 
 ---
@@ -261,7 +262,7 @@ pub struct OpenAICompatibleProvider {
 - [x] Provider 配置 (GenericProviderConfig)
 - [x] 流式响应处理 (SSE)
 - [x] Anthropic 直接 API 支持
-- [ ] Provider 配置 UI
+- [x] Provider 配置 UI
 - [ ] Ollama 集成测试
 - [ ] 离线测试
 
