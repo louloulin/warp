@@ -385,13 +385,28 @@ fn convert_chunk_to_response_event(text: String) -> Result<ResponseEvent, Error>
 - [x] 流式响应实时显示 ✅
 - [ ] 工具调用 (Shell, File) 正常工作 - ⚠️ 需要手动测试验证
 
+### 支持的 Providers
+
+**本地 LLM (OpenAI-compatible):**
+- ✅ Ollama (`http://localhost:11434`)
+- ✅ LM Studio (`http://localhost:1234`)
+- ✅ Jan (`http://localhost:1337`)
+- ✅ Text Generation WebUI (`http://localhost:5000`)
+
+**云端 API (OpenAI-compatible):**
+- ✅ DeepSeek (`https://api.deepseek.com/v1`, 模型: `deepseek-chat`)
+- ✅ MiniMax (`https://api.minimax.chat/v1`, 模型: `abab6-chat`)
+- ✅ 其他 OpenAI-compatible API (如 Groq, Fireworks AI 等)
+
 ### 测试场景 (需要手动验证)
 
 1. **无配置**: 配置为空时不触发本地 LLM 路由 ✅ 代码检查通过
 2. **Ollama 配置**: `http://localhost:11434`, `llama3` - ⚠️ 需要启动 Ollama 并手动测试
 3. **LM Studio 配置**: `http://localhost:1234`, 模型名 - ⚠️ 需要启动 LM Studio
-4. **工具调用**: Shell 命令执行 - ⚠️ 工具显示为文本，需要完整测试
-5. **对话历史**: 多轮对话上下文连贯 - ⚠️ 需要完整测试
+4. **DeepSeek 配置**: `https://api.deepseek.com/v1`, `deepseek-chat` - ⚠️ 需要配置 API Key
+5. **MiniMax 配置**: `https://api.minimax.chat/v1`, `abab6-chat` - ⚠️ 需要配置 API Key
+6. **工具调用**: Shell 命令执行 - ⚠️ 工具显示为文本，需要完整测试
+7. **对话历史**: 多轮对话上下文连贯 - ⚠️ 需要完整测试
 
 ---
 
