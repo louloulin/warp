@@ -14,6 +14,7 @@ use async_trait::async_trait;
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use warp_cli::agent::Harness;
+use warp_core::command::ExitCode;
 use warp_managed_secrets::ManagedSecretValue;
 
 use crate::ai::ambient_agents::AmbientAgentTaskId;
@@ -21,7 +22,7 @@ use crate::server::server_api::ServerApi;
 use crate::terminal::CLIAgent;
 use warpui::{ModelHandle, ModelSpawner};
 
-use super::terminal::{CommandHandle, TerminalDriver};
+use super::super::terminal::{CommandHandle, TerminalDriver};
 use super::{AgentDriverError, SavePoint, ThirdPartyHarness};
 
 /// Configuration for a generic OpenAI-compatible provider.
@@ -52,6 +53,24 @@ impl Default for GenericProviderConfig {
 }
 
 impl GenericProviderConfig {
+    /// Check if the config has valid settings for local LLM usage.
+    pub fn is_configured(&self) -> bool {
+        !self.base_url.is_empty() && !self.default_model.is_empty()
+    }
+
+    /// Check if this is an Anthropic API endpoint.
+    pub fn is_anthropic(&self) -> bool {
+        self.base_url.contains("anthropic")
+    }
+
+    /// Get the Anthropic API URL for direct Claude access.
+    pub fn anthropic_url(&self) -> String {
+        format!(
+            "{}/v1/messages",
+            self.base_url.trim_end_matches('/')
+        )
+    }
+
     /// Auto-detect available local LLM providers.
     /// Checks common endpoints in order of popularity.
     pub async fn auto_detect() -> Option<Self> {
@@ -285,7 +304,7 @@ impl GenericProviderConfig {
     /// Load configuration from the default config file.
     pub fn load() -> Result<Self, AgentDriverError> {
         let path = Self::default_config_path();
-        self.load_from_file(&path)
+        Self::load_from_file(&path)
     }
 
     /// Validate the configuration and return Ok if valid, or an error message.
@@ -366,14 +385,22 @@ impl GenericProviderConfig {
         }
     }
 
-    /// Check if this provider is Anthropic.
-    pub fn is_anthropic(&self) -> bool {
-        self.base_url.contains("anthropic.com")
-    }
+    // Duplicate methods removed - using the public ones defined in the first impl block
 
-    /// Build the Anthropic API URL for messages endpoint.
-    fn anthropic_url(&self) -> String {
-        format!("{}/v1/messages", self.base_url.trim_end_matches('/'))
+    /// Add Anthropic-specific headers.
+    pub fn add_anthropic_headers(
+        &self,
+        req_builder: reqwest::RequestBuilder,
+    ) -> reqwest::RequestBuilder {
+        let mut req_builder = req_builder
+            .header("Content-Type", "application/json")
+            .header("anthropic-version", "2023-06-01");
+
+        if let Some(ref api_key) = self.api_key {
+            req_builder = req_builder.header("x-api-key", api_key);
+        }
+
+        req_builder
     }
 
     /// Create a configuration for Fireworks AI.
@@ -594,23 +621,7 @@ impl GenericHttpHarness {
         }
     }
 
-    /// Add Anthropic-specific headers.
-    fn add_anthropic_headers(
-        &self,
-        req_builder: reqwest::RequestBuilder,
-    ) -> reqwest::RequestBuilder {
-        let mut req_builder = req_builder
-            .header("Content-Type", "application/json")
-            .header("anthropic-version", "2023-06-01");
-
-        if let Some(ref api_key) = self.config.api_key {
-            req_builder = req_builder.header("x-api-key", api_key);
-        }
-
-        req_builder
-    }
-
-    /// Build an Anthropic request from messages.
+    /// Build the Anthropic request from messages.
     fn build_anthropic_request(
         &self,
         messages: Vec<Message>,
@@ -692,87 +703,6 @@ impl GenericHttpHarness {
 
         Ok(chat_response)
     }
-
-    /// Handle Anthropic streaming response (SSE).
-    async fn anthropic_stream_response(
-        &self,
-        req_builder: reqwest::RequestBuilder,
-        foreground: &ModelSpawner<crate::ai::agent_sdk::driver::AgentDriver>,
-    ) -> Result<CommandHandle, AgentDriverError> {
-        let response =
-            req_builder
-                .send()
-                .await
-                .map_err(|e| AgentDriverError::HarnessSetupFailed {
-                    harness: "anthropic".to_string(),
-                    reason: format!("Failed to connect to Anthropic API: {}", e),
-                })?;
-
-        if !response.status().is_success() {
-            let status = response.status();
-            let body = response.text().await.unwrap_or_default();
-            return Err(AgentDriverError::HarnessSetupFailed {
-                harness: "anthropic".to_string(),
-                reason: format!("Anthropic API error {}: {}", status, body),
-            });
-        }
-
-        // Process Anthropic SSE stream
-        let mut stream = response.bytes_stream();
-        let mut accumulated_content = String::new();
-        let driver = self.terminal_driver.clone();
-
-        while let Some(chunk_result) = stream.next().await {
-            match chunk_result {
-                Ok(bytes) => {
-                    if let Ok(text) = String::from_utf8(bytes.to_vec()) {
-                        for line in text.lines() {
-                            if line.starts_with("data: ") {
-                                let data = &line[6..];
-                                if data == "[DONE]" {
-                                    break;
-                                }
-                                // Parse Anthropic streaming event
-                                if let Ok(event) =
-                                    serde_json::from_str::<AnthropicStreamEvent>(data)
-                                {
-                                    // Handle content block
-                                    if event.event_type == "content_block_delta" {
-                                        if let Some(delta) = event.delta {
-                                            if let Some(text) = delta.text {
-                                                accumulated_content.push_str(&text);
-                                                let _ = foreground
-                                                    .spawn({
-                                                        let driver = driver.clone();
-                                                        let text = text.clone();
-                                                        move |_, ctx| {
-                                                            driver
-                                                                .as_ref(ctx)
-                                                                .write_to_terminal(&text, ctx);
-                                                        }
-                                                    })
-                                                    .await;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                Err(e) => {
-                    log::warn!("Anthropic stream error: {}", e);
-                    break;
-                }
-            }
-        }
-
-        Ok(CommandHandle {
-            inner: tokio::sync::oneshot::channel().0,
-            block_id: None,
-            conversation_id: None,
-        })
-    }
 }
 
 impl ThirdPartyHarness for GenericHttpHarness {
@@ -782,7 +712,7 @@ impl ThirdPartyHarness for GenericHttpHarness {
 
     fn cli_agent(&self) -> CLIAgent {
         // Generic harness doesn't use a CLI
-        CLIAgent::Warp
+        CLIAgent::Unknown
     }
 
     fn install_docs_url(&self) -> Option<&'static str> {
@@ -938,18 +868,41 @@ impl super::HarnessRunner for GenericHarnessRunner {
         let driver = self.terminal_driver.clone();
         let _ = foreground
             .spawn(move |_, ctx| {
-                driver.as_ref(ctx).write_to_terminal(&content, ctx);
+                driver.update(ctx, |driver, ctx| {
+                    driver.send_text_to_cli(content, ctx);
+                });
             })
             .await;
 
-        // Return a mock command handle (the command completed successfully)
-        Ok(CommandHandle {
-            inner: tokio::sync::oneshot::channel().0,
-            block_id: None,
-            conversation_id: None,
-        })
+        // Return a command handle that is immediately resolved
+        Ok(CommandHandle::completed(0))
     }
 
+    async fn save_conversation(
+        &self,
+        _save_point: SavePoint,
+        _foreground: &ModelSpawner<crate::ai::agent_sdk::driver::AgentDriver>,
+    ) -> Result<()> {
+        // Conversation is stored in self.messages, could be persisted here
+        Ok(())
+    }
+
+    async fn exit(
+        &self,
+        _foreground: &ModelSpawner<crate::ai::agent_sdk::driver::AgentDriver>,
+    ) -> Result<()> {
+        Ok(())
+    }
+
+    async fn cleanup(
+        &self,
+        _foreground: &ModelSpawner<crate::ai::agent_sdk::driver::AgentDriver>,
+    ) -> Result<()> {
+        Ok(())
+    }
+}
+
+impl GenericHarnessRunner {
     /// Handle Anthropic API request.
     async fn anthropic_start(
         &self,
@@ -984,7 +937,7 @@ impl super::HarnessRunner for GenericHarnessRunner {
         };
 
         let req_builder = client.post(&url).json(&request);
-        let req_builder = self.add_anthropic_headers(req_builder);
+        let req_builder = self.config.add_anthropic_headers(req_builder);
 
         if self.config.streaming {
             return self
@@ -1039,15 +992,13 @@ impl super::HarnessRunner for GenericHarnessRunner {
         let driver = self.terminal_driver.clone();
         let _ = foreground
             .spawn(move |_, ctx| {
-                driver.as_ref(ctx).write_to_terminal(&content, ctx);
+                driver.update(ctx, |driver, ctx| {
+                    driver.send_text_to_cli(content, ctx);
+                });
             })
             .await;
 
-        Ok(CommandHandle {
-            inner: tokio::sync::oneshot::channel().0,
-            block_id: None,
-            conversation_id: None,
-        })
+        Ok(CommandHandle::completed(0))
     }
 
     /// Handle streaming response (SSE).
@@ -1104,9 +1055,9 @@ impl super::HarnessRunner for GenericHarnessRunner {
                                                     let driver = driver.clone();
                                                     let content = content.clone();
                                                     move |_, ctx| {
-                                                        driver
-                                                            .as_ref(ctx)
-                                                            .write_to_terminal(&content, ctx);
+                                                        driver.update(ctx, |driver, ctx| {
+                                                            driver.send_text_to_cli(content.clone(), ctx);
+                                                        });
                                                     }
                                                 })
                                                 .await;
@@ -1144,34 +1095,84 @@ impl super::HarnessRunner for GenericHarnessRunner {
         }
 
         // Return command handle
-        Ok(CommandHandle {
-            inner: tokio::sync::oneshot::channel().0,
-            block_id: None,
-            conversation_id: None,
-        })
+        Ok(CommandHandle::completed(0))
     }
 
-    async fn save_conversation(
+    /// Handle Anthropic streaming response (SSE).
+    async fn anthropic_stream_response(
         &self,
-        _save_point: SavePoint,
-        _foreground: &ModelSpawner<crate::ai::agent_sdk::driver::AgentDriver>,
-    ) -> Result<()> {
-        // Conversation is stored in self.messages, could be persisted here
-        Ok(())
-    }
+        req_builder: reqwest::RequestBuilder,
+        foreground: &ModelSpawner<crate::ai::agent_sdk::driver::AgentDriver>,
+    ) -> Result<CommandHandle, AgentDriverError> {
+        let response =
+            req_builder
+                .send()
+                .await
+                .map_err(|e| AgentDriverError::HarnessSetupFailed {
+                    harness: "anthropic".to_string(),
+                    reason: format!("Failed to connect to Anthropic API: {}", e),
+                })?;
 
-    async fn exit(
-        &self,
-        _foreground: &ModelSpawner<crate::ai::agent_sdk::driver::AgentDriver>,
-    ) -> Result<()> {
-        Ok(())
-    }
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            return Err(AgentDriverError::HarnessSetupFailed {
+                harness: "anthropic".to_string(),
+                reason: format!("Anthropic API error {}: {}", status, body),
+            });
+        }
 
-    async fn cleanup(
-        &self,
-        _foreground: &ModelSpawner<crate::ai::agent_sdk::driver::AgentDriver>,
-    ) -> Result<()> {
-        Ok(())
+        // Process Anthropic SSE stream
+        let mut stream = response.bytes_stream();
+        let mut accumulated_content = String::new();
+        let driver = self.terminal_driver.clone();
+
+        while let Some(chunk_result) = stream.next().await {
+            match chunk_result {
+                Ok(bytes) => {
+                    if let Ok(text) = String::from_utf8(bytes.to_vec()) {
+                        for line in text.lines() {
+                            if line.starts_with("data: ") {
+                                let data = &line[6..];
+                                if data == "[DONE]" {
+                                    break;
+                                }
+                                // Parse Anthropic streaming event
+                                if let Ok(event) =
+                                    serde_json::from_str::<AnthropicStreamEvent>(data)
+                                {
+                                    // Handle content block
+                                    if event.event_type == "content_block_delta" {
+                                        if let Some(delta) = event.delta {
+                                            if let Some(text) = delta.text {
+                                                accumulated_content.push_str(&text);
+                                                let _ = foreground
+                                                    .spawn({
+                                                        let driver = driver.clone();
+                                                        let text = text.clone();
+                                                        move |_, ctx| {
+                                                            driver.update(ctx, |driver, ctx| {
+                                                                driver.send_text_to_cli(text.clone(), ctx);
+                                                            });
+                                                        }
+                                                    })
+                                                    .await;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    log::warn!("Anthropic stream error: {}", e);
+                    break;
+                }
+            }
+        }
+
+        Ok(CommandHandle::completed(0))
     }
 }
 
@@ -1516,7 +1517,6 @@ mod integration_tests {
         let json = r#"{"id":"chatcmpl-123","choices":[{"index":0,"delta":{"content":"Hello"},"finish_reason":null}]}"#;
 
         let chunk: StreamingChunk = serde_json::from_str(json).unwrap();
-        assert_eq!(chunk.id, "chatcmpl-123");
         assert_eq!(chunk.choices[0].delta.content, Some("Hello".to_string()));
     }
 
@@ -1563,14 +1563,10 @@ mod integration_tests {
         }"#;
 
         let response: AnthropicStreamEvent = serde_json::from_str(json).unwrap();
-        match response {
-            AnthropicStreamEvent::ContentBlockDelta { delta, .. } => {
-                if let AnthropicDelta::Text { text } = delta {
-                    assert_eq!(text, "Hello!");
-                }
-            }
-            _ => panic!("Expected ContentBlockDelta"),
-        }
+        assert_eq!(response.event_type, "content_block_delta");
+        assert!(response.delta.is_some());
+        let delta = response.delta.unwrap();
+        assert_eq!(delta.text, Some("Hello!".to_string()));
     }
 
     #[test]

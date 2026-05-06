@@ -7,7 +7,7 @@ use warp_multi_agent_api as api;
 
 use crate::server::server_api::ServerApi;
 
-use super::{convert_to::convert_input, ConvertToAPITypeError, RequestParams, ResponseStream};
+use super::{convert_to::convert_input, local_llm_output, ConvertToAPITypeError, RequestParams, ResponseStream};
 
 pub async fn generate_multi_agent_output(
     server_api: Arc<ServerApi>,
@@ -19,6 +19,15 @@ pub async fn generate_multi_agent_output(
         .take()
         .unwrap_or_else(|| get_supported_tools(&params));
     let supported_cli_agent_tools = get_supported_cli_agent_tools(&params);
+
+    // Check if local LLM is configured and route to local provider
+    if let Some(config) = local_llm_output::load_local_llm_config() {
+        log::info!("Using local LLM provider: {} @ {}", config.name, config.base_url);
+        let local_stream = local_llm_output::generate_local_llm_output(config, params, cancellation_rx).await?;
+        return Ok(local_stream);
+    }
+
+    // Build request for Warp Server
     let mut logging_metadata = HashMap::new();
     if let Some(metadata) = params.metadata {
         logging_metadata.insert(
@@ -129,6 +138,7 @@ pub async fn generate_multi_agent_output(
         mcp_context: params.mcp_context.map(Into::into),
     };
 
+    // Route to Warp Server
     let response_stream = server_api.generate_multi_agent_output(&request).await;
     match response_stream {
         Ok(stream) => {

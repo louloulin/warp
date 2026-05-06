@@ -1,6 +1,7 @@
 pub(crate) mod convert_conversation;
 mod convert_from;
 mod convert_to;
+mod local_llm_output;
 mod r#impl;
 
 pub use ai::agent::convert::ConvertToAPITypeError;
