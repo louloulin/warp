@@ -498,3 +498,4 @@ fn convert_chunk_to_response_event(text: String) -> Result<ResponseEvent, Error>
 ---
 
 *本计划基于深度代码追踪生成，v2.1 更新于 2026-05-06*
+*代码已提交: 1941b51 feat: add local LLM routing support for Warp GUI*
