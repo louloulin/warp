@@ -398,6 +398,15 @@ fn convert_chunk_to_response_event(text: String) -> Result<ResponseEvent, Error>
 - ✅ MiniMax (`https://api.minimax.chat/v1`, 模型: `abab6-chat`)
 - ✅ 其他 OpenAI-compatible API (如 Groq, Fireworks AI 等)
 
+### 验证状态
+
+| 验证项 | 状态 | 说明 |
+|--------|------|------|
+| 代码编译 | ✅ | `cargo build --bin warp-oss` 通过 |
+| URL 构造 | ✅ | `/v1/chat/completions` 正确 |
+| API Key 处理 | ✅ | Bearer token 认证正确 |
+| GenericProviderConfig | ✅ | 配置加载正确 |
+
 ### 测试场景 (需要手动验证)
 
 1. **无配置**: 配置为空时不触发本地 LLM 路由 ✅ 代码检查通过
