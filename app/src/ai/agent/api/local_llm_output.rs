@@ -33,6 +33,37 @@ struct LocalChatRequest {
     tools: Option<serde_json::Value>,
 }
 
+/// Extract user query from RequestParams.
+fn extract_user_query(params: &super::RequestParams) -> String {
+    for input in &params.input {
+        if let super::AIAgentInput::UserQuery { query, .. } = input {
+            return query.clone();
+        }
+    }
+    String::new()
+}
+
+/// Build messages array from user query and context.
+fn build_messages(user_query: &str, _context: &[super::AIAgentInput]) -> Vec<serde_json::Value> {
+    let system_prompt = "You are Warp Terminal AI assistant. Help users with terminal commands, code explanations, and general questions. Keep responses concise and focused.";
+
+    let mut messages = vec![
+        serde_json::json!({
+            "role": "system",
+            "content": system_prompt
+        }),
+    ];
+
+    if !user_query.is_empty() {
+        messages.push(serde_json::json!({
+            "role": "user",
+            "content": user_query
+        }));
+    }
+
+    messages
+}
+
 /// Generate local LLM output stream.
 ///
 /// This function sends the request to a local LLM provider (Ollama, LM Studio, etc.)
@@ -40,7 +71,7 @@ struct LocalChatRequest {
 #[cfg(not(target_family = "wasm"))]
 pub async fn generate_local_llm_output(
     config: GenericProviderConfig,
-    _params: super::RequestParams,
+    params: super::RequestParams,
     cancellation_rx: futures::channel::oneshot::Receiver<()>,
 ) -> Result<ResponseStream, ConvertToAPITypeError> {
     let client = reqwest::Client::new();
@@ -49,16 +80,11 @@ pub async fn generate_local_llm_output(
     let base_url = config.base_url.trim_end_matches('/');
     let url = format!("{}/v1/chat/completions", base_url);
 
-    // Create system message for Warp context
-    let system_prompt = "You are Warp Terminal AI assistant. Help users with terminal commands, code explanations, and general questions. Keep responses concise and focused.";
+    // Extract user query from params
+    let user_query = extract_user_query(&params);
 
     // Build messages for the request
-    let messages = vec![
-        serde_json::json!({
-            "role": "system",
-            "content": system_prompt
-        }),
-    ];
+    let messages = build_messages(&user_query, &params.input);
 
     // Create OpenAI-compatible request
     let request = LocalChatRequest {
