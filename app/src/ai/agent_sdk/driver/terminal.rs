@@ -562,6 +562,19 @@ impl CommandHandle {
     pub fn block_id(&self) -> &BlockId {
         &self.block_id
     }
+
+    /// Create a CommandHandle that is immediately resolved with the given exit code.
+    /// This is useful for harnesses that don't execute actual CLI commands.
+    pub(crate) fn completed(exit_code: impl Into<ExitCode>) -> Self {
+        let exit_code = exit_code.into();
+        let (exit_tx, exit_status_rx) = oneshot::channel();
+        // Send the exit code immediately so the handle is ready
+        let _ = exit_tx.send(exit_code);
+        CommandHandle {
+            exit_status_rx,
+            block_id: BlockId::new(),
+        }
+    }
 }
 
 impl Future for CommandHandle {

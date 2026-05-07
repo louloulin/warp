@@ -217,7 +217,7 @@ pub enum AgentCommand {
     ),
     group(
         clap::ArgGroup::new("harness_generic")
-            .multiple(false)
+            .multiple(true)
             .args(["provider_url", "api_key", "llm_model"])
     )
 )]

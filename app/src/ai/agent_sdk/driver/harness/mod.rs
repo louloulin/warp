@@ -37,7 +37,7 @@ use super::{
 mod claude_code;
 pub(crate) mod claude_transcript;
 mod gemini;
-mod generic_http;
+pub mod generic_http;
 mod json_utils;
 
 pub(crate) use claude_code::ClaudeHarness;

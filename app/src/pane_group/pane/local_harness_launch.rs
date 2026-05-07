@@ -60,7 +60,7 @@ pub(super) fn build_local_opencode_child_command(prompt: &str) -> String {
 fn local_child_task_config(harness: Harness) -> Option<AgentConfigSnapshot> {
     match harness {
         Harness::Oz | Harness::OpenCode | Harness::Gemini | Harness::Unknown => None,
-        Harness::Claude => Some(AgentConfigSnapshot {
+        Harness::Claude | Harness::Generic => Some(AgentConfigSnapshot {
             harness: Some(HarnessConfig::from_harness_type(harness)),
             ..Default::default()
         }),
@@ -124,6 +124,11 @@ pub(super) async fn prepare_local_harness_child_launch(
             build_local_opencode_child_command(&prompt)
         }
         Harness::Gemini => unreachable!("normalize_local_child_harness filters out Gemini"),
+        Harness::Generic => {
+            // Generic harness doesn't launch a child CLI process
+            // The harness manages HTTP calls directly
+            String::new()
+        }
     };
 
     let task_id = ai_client

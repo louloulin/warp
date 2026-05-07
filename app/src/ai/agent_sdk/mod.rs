@@ -1259,7 +1259,20 @@ impl AgentDriverRunner {
 fn command_requires_auth(command: &CliCommand) -> bool {
     match command {
         CliCommand::Agent(agent_cmd) => match agent_cmd {
-            AgentCommand::Run { .. } => true,
+            AgentCommand::Run(run_args) => {
+                // Generic harness doesn't require login - users can use local LLMs
+                // (Ollama, LM Studio) or custom OpenAI-compatible APIs without authentication.
+                // Check for --harness generic OR any of the generic harness args.
+                if run_args.provider_url.is_some()
+                    || run_args.api_key.is_some()
+                    || run_args.llm_model.is_some()
+                    || run_args.harness == Harness::Generic
+                {
+                    false
+                } else {
+                    true
+                }
+            }
             AgentCommand::RunCloud { .. } => true,
             AgentCommand::Profile(sub) => match sub {
                 AgentProfileCommand::List => true,
@@ -1403,6 +1416,7 @@ fn resolve_orchestration_harness_label() -> &'static str {
         Some(Harness::Claude) => "claude",
         Some(Harness::OpenCode) => "opencode",
         Some(Harness::Gemini) => "gemini",
+        Some(Harness::Generic) => "generic",
         Some(Harness::Unknown) | None => "unknown",
     }
 }

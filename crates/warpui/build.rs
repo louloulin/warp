@@ -71,6 +71,28 @@ fn compile_metal_shaders() {
     let metal_path = "src/platform/mac/rendering/metal/shaders/shaders.metal";
     let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
 
+    // Use a fixed cache path for compiled shaders to avoid recompilation on every build.
+    // This avoids needing Xcode command line tools for Metal compilation on every build.
+    let cache_base = env::var("WARP_SHADER_CACHE").unwrap_or_else(|_| {
+        std::env::current_dir()
+            .unwrap_or_default()
+            .join(".warp_shader_cache")
+            .to_string_lossy()
+            .to_string()
+    });
+    let cache_path = PathBuf::from(&cache_base);
+    let cache_air_path = cache_path.join("shaders.air");
+    let cache_lib_path = cache_path.join("shaders.metallib");
+
+    // Always use cached shaders if they exist (to avoid requiring Xcode CLI tools)
+    if cache_air_path.exists() && cache_lib_path.exists() {
+        // Copy from cache to OUT_DIR
+        std::fs::copy(&cache_air_path, out_path.join("shaders.air")).ok();
+        std::fs::copy(&cache_lib_path, out_path.join("shaders.metallib")).ok();
+        println!("cargo:warning=Metal shaders loaded from cache, skipping compilation");
+        return;
+    }
+
     let air_path = out_path.join("shaders.air");
     let air_path = air_path.to_str().unwrap();
 
@@ -79,6 +101,32 @@ fn compile_metal_shaders() {
 
     println!("cargo:rerun-if-changed={header_path}");
     println!("cargo:rerun-if-changed={metal_path}");
+
+    // Check if Metal shader compiler is available (requires full Xcode, not just CLTs)
+    let metal_check = Command::new("xcrun")
+        .args(["-sdk", "macosx", "metal", "--version"])
+        .output();
+    if metal_check.is_err() || !metal_check.unwrap().status.success() {
+        // Metal compiler not available - check for cached shaders or skip
+        let cached_shaders = std::env::var_os("WARP_CACHED_SHADERS_DIR");
+        if let Some(cache_dir) = cached_shaders {
+            let dir = PathBuf::from(&cache_dir);
+            let cache_air = dir.join("shaders.air");
+            let cache_lib = dir.join("shaders.metallib");
+            if cache_air.exists() && cache_lib.exists() {
+                std::fs::copy(&cache_air, out_path.join("shaders.air")).ok();
+                std::fs::copy(&cache_lib, out_path.join("shaders.metallib")).ok();
+                println!("cargo:warning=Metal shaders loaded from WARP_CACHED_SHADERS_DIR, skipping compilation");
+                return;
+            }
+        }
+        // Create empty placeholder files to allow linking
+        std::fs::write(out_path.join("shaders.air"), "").ok();
+        std::fs::write(out_path.join("shaders.metallib"), "").ok();
+        println!("cargo:warning=Metal shader compilation skipped (Metal compiler not available)");
+        println!("cargo:warning=To enable GPU rendering, set WARP_CACHED_SHADERS_DIR=/path/to/cached/shaders or install Xcode");
+        return;
+    }
 
     let mut compile_args = vec!["-sdk", "macosx", "metal", "-c", metal_path, "-o", air_path];
     if cfg!(feature = "enable-metal-frame-capture") {
@@ -104,6 +152,18 @@ fn compile_metal_shaders() {
         "error compling metal shaders to .metallib; {}",
         std::str::from_utf8(&result.stderr).unwrap(),
     );
+
+    // Save compiled shaders to cache for future builds
+    if let Err(e) = std::fs::create_dir_all(&cache_path) {
+        eprintln!("Warning: failed to create shader cache dir: {e}");
+    } else {
+        if let Err(e) = std::fs::copy(air_path, &cache_air_path) {
+            eprintln!("Warning: failed to cache shaders.air: {e}");
+        }
+        if let Err(e) = std::fs::copy(lib_path, &cache_lib_path) {
+            eprintln!("Warning: failed to cache shaders.metallib: {e}");
+        }
+    }
 }
 
 fn compile_objc_lib() {
