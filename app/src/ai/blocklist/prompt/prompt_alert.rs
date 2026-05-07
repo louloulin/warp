@@ -13,7 +13,7 @@ use crate::{
     auth::AuthStateProvider,
     network::NetworkStatus,
     server::ids::ServerId,
-    settings::PrivacySettings,
+    settings::{AISettings, PrivacySettings},
     settings_view::SettingsSection,
     ui_components::icons::Icon,
     workspace::WorkspaceAction,
@@ -156,9 +156,11 @@ impl PromptAlertView {
         let auth_state = AuthStateProvider::as_ref(app).get();
 
         // Next, if the user is anonymous, we check if they have reached a certain percentage of requests used.
-        if auth_state
-            .is_anonymous_user_feature_gated()
-            .unwrap_or_default()
+        // Local LLM users bypass anonymous user limits since they're using their own providers.
+        if !AISettings::as_ref(app).is_local_llm_configured()
+            && auth_state
+                .is_anonymous_user_feature_gated()
+                .unwrap_or_default()
         {
             let percentage_used = request_usage_model.request_percentage_used();
 

@@ -41,6 +41,7 @@ use crate::terminal::session_settings::{SessionSettings, SessionSettingsChangedE
 use crate::terminal::CLIAgent;
 use crate::view_components::{
     action_button::{ActionButton, ButtonSize, SecondaryTheme},
+    dropdown::TOP_MENU_BAR_HEIGHT,
     FilterableDropdown, SubmittableTextInput, SubmittableTextInputEvent,
 };
 use crate::workspaces::user_workspaces::UserWorkspacesEvent;
@@ -66,7 +67,6 @@ use warpui::{
         Container, Flex, FormattedTextElement, HighlightedHyperlink, HyperlinkUrl, ParentElement,
     },
     ui_components::{
-        button::ButtonVariant,
         components::{Coords, UiComponent, UiComponentStyles},
         switch::{SwitchStateHandle, TooltipConfig},
     },
@@ -448,6 +448,13 @@ pub struct AISettingsPageView {
     // Profile views
     profile_views: Vec<ViewHandle<ExecutionProfileView>>,
     add_profile_button: ViewHandle<ActionButton>,
+
+    // Local LLM Provider editors
+    local_llm_url_editor: ViewHandle<EditorView>,
+    local_llm_api_key_editor: ViewHandle<EditorView>,
+    local_llm_model_editor: ViewHandle<EditorView>,
+    local_llm_save_button: ViewHandle<ActionButton>,
+    local_llm_test_button: ViewHandle<ActionButton>,
 }
 
 impl AISettingsPageView {
@@ -1352,6 +1359,97 @@ impl AISettingsPageView {
             dropdown
         });
 
+        // Local LLM Provider editors
+        let local_llm_url_editor = {
+            let editor = ctx.add_typed_action_view(|ctx| {
+                let options = SingleLineEditorOptions {
+                    text: TextOptions::ui_font_size(&Appearance::as_ref(ctx)),
+                    ..Default::default()
+                };
+                let mut editor = EditorView::single_line(options, ctx);
+                editor.set_placeholder_text("http://localhost:11434", ctx);
+                editor
+            });
+            let config = GenericProviderConfig::load().unwrap_or_default();
+            editor.update(ctx, |e, ctx| {
+                e.set_buffer_text(&config.base_url, ctx);
+            });
+            let handle = editor.clone();
+            ctx.subscribe_to_view(&editor, move |_, _, event, ctx| {
+                if matches!(event, EditorEvent::Blurred | EditorEvent::Enter) {
+                    let _ = handle.as_ref(ctx).buffer_text(ctx);
+                    ctx.dispatch_typed_action(&AISettingsPageAction::SetLocalLLMProviderURL);
+                }
+            });
+            editor
+        };
+
+        let local_llm_api_key_editor = {
+            let editor = ctx.add_typed_action_view(|ctx| {
+                let options = SingleLineEditorOptions {
+                    text: TextOptions::ui_font_size(&Appearance::as_ref(ctx)),
+                    ..Default::default()
+                };
+                let mut editor = EditorView::single_line(options, ctx);
+                editor.set_placeholder_text("sk-... (optional for local providers)", ctx);
+                editor
+            });
+            let config = GenericProviderConfig::load().unwrap_or_default();
+            if let Some(key) = &config.api_key {
+                editor.update(ctx, |e, ctx| {
+                    e.set_buffer_text(key, ctx);
+                });
+            }
+            let handle = editor.clone();
+            ctx.subscribe_to_view(&editor, move |_, _, event, ctx| {
+                if matches!(event, EditorEvent::Blurred | EditorEvent::Enter) {
+                    let _ = handle.as_ref(ctx).buffer_text(ctx);
+                    ctx.dispatch_typed_action(&AISettingsPageAction::SetLocalLLMApiKey);
+                }
+            });
+            editor
+        };
+
+        let local_llm_model_editor = {
+            let editor = ctx.add_typed_action_view(|ctx| {
+                let options = SingleLineEditorOptions {
+                    text: TextOptions::ui_font_size(&Appearance::as_ref(ctx)),
+                    ..Default::default()
+                };
+                let mut editor = EditorView::single_line(options, ctx);
+                editor.set_placeholder_text("llama3, gpt-4, claude-3-sonnet", ctx);
+                editor
+            });
+            let config = GenericProviderConfig::load().unwrap_or_default();
+            editor.update(ctx, |e, ctx| {
+                e.set_buffer_text(&config.default_model, ctx);
+            });
+            let handle = editor.clone();
+            ctx.subscribe_to_view(&editor, move |_, _, event, ctx| {
+                if matches!(event, EditorEvent::Blurred | EditorEvent::Enter) {
+                    let _ = handle.as_ref(ctx).buffer_text(ctx);
+                    ctx.dispatch_typed_action(&AISettingsPageAction::SetLocalLLMModel);
+                }
+            });
+            editor
+        };
+
+        let local_llm_save_button = ctx.add_typed_action_view(|_| {
+            ActionButton::new("Save Config", SecondaryTheme)
+                .with_size(ButtonSize::Small)
+                .on_click(|ctx| {
+                    ctx.dispatch_typed_action(AISettingsPageAction::SaveLocalLLMConfig);
+                })
+        });
+
+        let local_llm_test_button = ctx.add_typed_action_view(|_| {
+            ActionButton::new("Test Connection", SecondaryTheme)
+                .with_size(ButtonSize::Small)
+                .on_click(|ctx| {
+                    ctx.dispatch_typed_action(AISettingsPageAction::TestLocalLLMConnection);
+                })
+        });
+
         Self {
             page: Self::build_page(None, ctx),
             active_subpage: None,
@@ -1393,6 +1491,11 @@ impl AISettingsPageView {
             conversation_layout_dropdown,
             profile_views,
             add_profile_button,
+            local_llm_url_editor,
+            local_llm_api_key_editor,
+            local_llm_model_editor,
+            local_llm_save_button,
+            local_llm_test_button,
         }
     }
 
@@ -2128,6 +2231,12 @@ pub enum AISettingsPageAction {
         pattern: String,
         agent: Option<CLIAgent>,
     },
+    /// Local LLM Provider actions
+    SetLocalLLMProviderURL,
+    SetLocalLLMApiKey,
+    SetLocalLLMModel,
+    TestLocalLLMConnection,
+    SaveLocalLLMConfig,
 }
 
 impl From<&AISettingsPageAction> for LoginGatedFeature {
@@ -2843,6 +2952,92 @@ impl TypedActionView for AISettingsPageView {
                 });
                 ctx.notify();
             }
+            AISettingsPageAction::SetLocalLLMProviderURL => {
+                // URL updated via editor blur/enter - value stored in editor
+            }
+            AISettingsPageAction::SetLocalLLMApiKey => {
+                // API key updated via editor blur/enter - value stored in editor
+            }
+            AISettingsPageAction::SetLocalLLMModel => {
+                // Model updated via editor blur/enter - value stored in editor
+            }
+            AISettingsPageAction::SaveLocalLLMConfig => {
+                let base_url = self.local_llm_url_editor.as_ref(ctx).buffer_text(ctx);
+                let api_key_text = self.local_llm_api_key_editor.as_ref(ctx).buffer_text(ctx);
+                let default_model = self.local_llm_model_editor.as_ref(ctx).buffer_text(ctx);
+                let api_key = if api_key_text.is_empty() {
+                    None
+                } else {
+                    Some(api_key_text)
+                };
+                let mut config = GenericProviderConfig::load().unwrap_or_default();
+                config.base_url = base_url;
+                config.api_key = api_key;
+                config.default_model = default_model;
+                config.name = if config.base_url.contains("ollama") {
+                    "Ollama".to_string()
+                } else if config.base_url.contains("lmstudio") || config.base_url.contains(":1234") {
+                    "LM Studio".to_string()
+                } else if config.base_url.contains("anthropic") {
+                    "Anthropic".to_string()
+                } else if config.base_url.contains("openai") {
+                    "OpenAI".to_string()
+                } else {
+                    "Custom Provider".to_string()
+                };
+                if let Err(e) = config.save() {
+                    log::error!("Failed to save Local LLM config: {e}");
+                } else {
+                    log::info!("Local LLM config saved: {} @ {}", config.name, config.base_url);
+                }
+                ctx.notify();
+            }
+            AISettingsPageAction::TestLocalLLMConnection => {
+                let base_url = self.local_llm_url_editor.as_ref(ctx).buffer_text(ctx);
+                let api_key_text = self.local_llm_api_key_editor.as_ref(ctx).buffer_text(ctx);
+                let default_model = self.local_llm_model_editor.as_ref(ctx).buffer_text(ctx);
+                log::info!(
+                    "Testing Local LLM connection: {} with model {}",
+                    base_url,
+                    default_model
+                );
+                // Spawn async connection test
+                let url = base_url.clone();
+                let model = default_model.clone();
+                let api_key_val = if api_key_text.is_empty() { None } else { Some(api_key_text) };
+                ctx.spawn(
+                    async move {
+                        let client = reqwest::Client::new();
+                        let test_url = if url.ends_with("/v1") {
+                            format!("{}/models", url.trim_end_matches('/'))
+                        } else {
+                            format!("{}/v1/models", url.trim_end_matches('/'))
+                        };
+                        let mut req = client.get(&test_url).timeout(std::time::Duration::from_secs(5));
+                        if let Some(key) = &api_key_val {
+                            req = req.bearer_auth(key);
+                        }
+                        match req.send().await {
+                            Ok(resp) => {
+                                if resp.status().is_success() {
+                                    log::info!("Connection test to {} succeeded", url);
+                                } else {
+                                    log::warn!("Connection test to {} returned status {}", url, resp.status());
+                                }
+                            }
+                            Err(e) => {
+                                log::warn!("Connection test to {} failed: {}", url, e);
+                            }
+                        }
+                        // Return model name as a simple result indicator
+                        model
+                    },
+                    |_me, _model_name, ctx| {
+                        log::info!("Connection test completed");
+                        ctx.notify();
+                    },
+                );
+            }
         }
     }
 }
@@ -3062,7 +3257,6 @@ fn render_ai_list(
 #[derive(Default)]
 struct GlobalAIWidget {
     switch_state: SwitchStateHandle,
-    sign_up_button: MouseStateHandle,
 }
 
 impl SettingsWidget for GlobalAIWidget {
@@ -3082,10 +3276,6 @@ impl SettingsWidget for GlobalAIWidget {
         let ui_builder = appearance.ui_builder();
         let is_ai_disabled_due_to_remote_session_org_policy =
             AISettings::as_ref(app).is_ai_disabled_due_to_remote_session_org_policy(app);
-
-        let is_anonymous = AuthStateProvider::as_ref(app)
-            .get()
-            .is_anonymous_or_logged_out();
 
         let mut row = Flex::row()
             .with_main_axis_size(MainAxisSize::Max)
@@ -3119,75 +3309,23 @@ impl SettingsWidget for GlobalAIWidget {
             );
         }
 
-        // Show sign-up button for anonymous users, toggle for logged-in users
-        if is_anonymous {
-            row.add_child(
-                Flex::row()
-                    .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                    .with_child(
-                        Container::new(
-                            Text::new_inline(
-                                "To use AI features, please create an account.",
-                                appearance.ui_font_family(),
-                                14.,
-                            )
-                            .with_color(
-                                appearance
-                                    .theme()
-                                    .sub_text_color(appearance.theme().surface_2())
-                                    .into_solid(),
-                            )
-                            .finish(),
-                        )
-                        .with_margin_right(16.)
-                        .finish(),
-                    )
-                    .with_child(
-                        Container::new(
-                            ui_builder
-                                .button(ButtonVariant::Accent, self.sign_up_button.clone())
-                                .with_style(UiComponentStyles {
-                                    font_size: Some(14.),
-                                    font_weight: Some(Weight::Semibold),
-                                    border_radius: Some(CornerRadius::with_all(Radius::Pixels(4.))),
-                                    padding: Some(Coords {
-                                        top: 8.,
-                                        bottom: 8.,
-                                        left: 24.,
-                                        right: 24.,
-                                    }),
-                                    ..Default::default()
-                                })
-                                .with_text_label("Sign up".to_owned())
-                                .build()
-                                .on_click(move |ctx, _, _| {
-                                    ctx.dispatch_typed_action(
-                                        AISettingsPageAction::SignupAnonymousUser,
-                                    );
-                                })
-                                .finish(),
-                        )
-                        .with_padding_right(TOGGLE_BUTTON_RIGHT_PADDING)
-                        .finish(),
-                    )
+        // AI features are now available for all users (including anonymous) when using local LLM providers.
+        // Cloud AI features still require login, but the toggle is shown so users can enable local AI.
+        // Show toggle for all users - local LLM works without login, cloud features require login
+        row.add_child(
+            Container::new(
+                ui_builder
+                    .switch(self.switch_state.clone())
+                    .check(AISettings::as_ref(app).is_any_ai_enabled(app))
+                    .build()
+                    .on_click(move |ctx, _, _| {
+                        ctx.dispatch_typed_action(AISettingsPageAction::ToggleGlobalAI);
+                    })
                     .finish(),
-            );
-        } else {
-            row.add_child(
-                Container::new(
-                    ui_builder
-                        .switch(self.switch_state.clone())
-                        .check(AISettings::as_ref(app).is_any_ai_enabled(app))
-                        .build()
-                        .on_click(move |ctx, _, _| {
-                            ctx.dispatch_typed_action(AISettingsPageAction::ToggleGlobalAI);
-                        })
-                        .finish(),
-                )
-                .with_padding_right(TOGGLE_BUTTON_RIGHT_PADDING)
-                .finish(),
-            );
-        }
+            )
+            .with_padding_right(TOGGLE_BUTTON_RIGHT_PADDING)
+            .finish(),
+        );
 
         Container::new(row.finish())
             .with_padding_bottom(15.)
@@ -5728,24 +5866,12 @@ impl SettingsWidget for LocalLLMProviderWidget {
 
     fn render(
         &self,
-        _view: &Self::View,
+        view: &Self::View,
         appearance: &Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
         let config = GenericProviderConfig::load().unwrap_or_default();
         let is_any_ai_enabled = AISettings::as_ref(app).is_any_ai_enabled(app);
-
-        // Status indicator
-        let status_color = if config.base_url == "http://localhost:11434"
-            || config.base_url == "http://localhost:1234"
-            || config.base_url == "http://localhost:1337"
-            || config.base_url == "http://localhost:5000"
-        {
-            // Provider detected - would need async check
-            "(configure and test connection)"
-        } else {
-            "(not configured)"
-        };
 
         let mut column = Flex::column()
             .with_child(render_separator(appearance))
@@ -5759,72 +5885,200 @@ impl SettingsWidget for LocalLLMProviderWidget {
                 .finish(),
             );
 
-        // Provider info
-        let info_text = if config.name.is_empty() {
-            "No provider configured".to_string()
-        } else {
-            format!("{} @ {}", config.name, config.base_url)
-        };
+        // Description
+        column.add_child(
+            Container::new(
+                Text::new_inline(
+                    "Configure a local or custom LLM provider (Ollama, LM Studio, etc.)",
+                    appearance.ui_font_family(),
+                    CONTENT_FONT_SIZE - 1.0,
+                )
+                .with_color(styles::description_font_color(true, app).into())
+                .finish(),
+            )
+            .with_margin_bottom(12.)
+            .finish(),
+        );
 
-        let status_text = if config.default_model.is_empty() {
-            "Model: not set".to_string()
-        } else {
-            format!("Model: {}", config.default_model)
-        };
-
+        // Provider URL input
         column.add_child(
             Container::new(
                 Flex::column()
                     .with_child(
-                        Text::new(&info_text)
-                            .with_font_size(CONTENT_FONT_SIZE)
-                            .with_font_color(styles::header_font_color(is_any_ai_enabled, app))
-                            .finish(),
+                        Text::new_inline(
+                            "Provider URL:",
+                            appearance.ui_font_family(),
+                            CONTENT_FONT_SIZE - 1.0,
+                        )
+                        .with_color(styles::description_font_color(true, app).into())
+                        .finish(),
                     )
                     .with_child(
-                        Text::new(&status_text)
-                            .with_font_size(CONTENT_FONT_SIZE - 1.0)
-                            .with_font_color(styles::description_font_color(true, app))
-                            .finish(),
-                    )
-                    .with_child(
-                        Text::new(status_color)
-                            .with_font_size(CONTENT_FONT_SIZE - 1.0)
-                            .with_font_color(styles::description_font_color(true, app))
-                            .finish(),
+                        Shrinkable::new(
+                            1.,
+                            appearance
+                                .ui_builder()
+                                .text_input(view.local_llm_url_editor.clone())
+                                .with_style(UiComponentStyles {
+                                    height: Some(TOP_MENU_BAR_HEIGHT),
+                                    font_color: Some(pathfinder_color::ColorU::black()),
+                                    font_size: Some(appearance.ui_font_size()),
+                                    padding: Some(Coords::uniform(7.)),
+                                    margin: Some(Coords::default().top(4.).bottom(8.)),
+                                    background: Some(appearance.theme().surface_2().into()),
+                                    ..Default::default()
+                                })
+                                .build()
+                                .finish(),
+                        )
+                        .finish(),
                     )
                     .finish(),
             )
-            .with_margin_bottom(8.)
             .finish(),
         );
 
-        // Configuration info
-        let config_path = GenericProviderConfig::default_config_path()
-            .to_string_lossy()
-            .to_string();
-
+        // API Key input
         column.add_child(
             Container::new(
-                Text::new(&format!("Config: {}", config_path))
-                    .with_font_size(CONTENT_FONT_SIZE - 1.0)
-                    .with_font_color(styles::description_font_color(true, app))
+                Flex::column()
+                    .with_child(
+                        Text::new_inline(
+                            "API Key (optional):",
+                            appearance.ui_font_family(),
+                            CONTENT_FONT_SIZE - 1.0,
+                        )
+                        .with_color(styles::description_font_color(true, app).into())
+                        .finish(),
+                    )
+                    .with_child(
+                        Shrinkable::new(
+                            1.,
+                            appearance
+                                .ui_builder()
+                                .text_input(view.local_llm_api_key_editor.clone())
+                                .with_style(UiComponentStyles {
+                                    height: Some(TOP_MENU_BAR_HEIGHT),
+                                    font_color: Some(pathfinder_color::ColorU::black()),
+                                    font_size: Some(appearance.ui_font_size()),
+                                    padding: Some(Coords::uniform(7.)),
+                                    margin: Some(Coords::default().top(4.).bottom(8.)),
+                                    background: Some(appearance.theme().surface_2().into()),
+                                    ..Default::default()
+                                })
+                                .build()
+                                .finish(),
+                        )
+                        .finish(),
+                    )
                     .finish(),
             )
-            .with_margin_bottom(8.)
             .finish(),
         );
 
-        // Help text
-        let help_text = "To configure: Edit the config file or use `oz run --harness generic`";
+        // Model input
         column.add_child(
             Container::new(
-                Text::new(help_text)
-                    .with_font_size(CONTENT_FONT_SIZE - 1.0)
-                    .with_font_color(styles::description_font_color(true, app))
+                Flex::column()
+                    .with_child(
+                        Text::new_inline(
+                            "Default Model:",
+                            appearance.ui_font_family(),
+                            CONTENT_FONT_SIZE - 1.0,
+                        )
+                        .with_color(styles::description_font_color(true, app).into())
+                        .finish(),
+                    )
+                    .with_child(
+                        Shrinkable::new(
+                            1.,
+                            appearance
+                                .ui_builder()
+                                .text_input(view.local_llm_model_editor.clone())
+                                .with_style(UiComponentStyles {
+                                    height: Some(TOP_MENU_BAR_HEIGHT),
+                                    font_color: Some(pathfinder_color::ColorU::black()),
+                                    font_size: Some(appearance.ui_font_size()),
+                                    padding: Some(Coords::uniform(7.)),
+                                    margin: Some(Coords::default().top(4.).bottom(8.)),
+                                    background: Some(appearance.theme().surface_2().into()),
+                                    ..Default::default()
+                                })
+                                .build()
+                                .finish(),
+                        )
+                        .finish(),
+                    )
                     .finish(),
             )
-            .with_margin_bottom(4.)
+            .finish(),
+        );
+
+        // Buttons row
+        let buttons_row = Flex::row()
+            .with_cross_axis_alignment(CrossAxisAlignment::Center)
+            .with_child(
+                Container::new(ChildView::new(&view.local_llm_save_button).finish())
+                    .with_margin_right(8.)
+                    .finish(),
+            )
+            .with_child(ChildView::new(&view.local_llm_test_button).finish());
+
+        column.add_child(
+            Container::new(buttons_row.finish())
+                .with_margin_top(8.)
+                .with_margin_bottom(12.)
+                .finish(),
+        );
+
+        // Preset buttons description
+        let presets_text = Text::new_inline(
+            "Quick presets: Ollama (localhost:11434), LM Studio (localhost:1234)",
+            appearance.ui_font_family(),
+            CONTENT_FONT_SIZE - 1.0,
+        )
+        .with_color(styles::description_font_color(true, app).into())
+        .finish();
+
+        column.add_child(
+            Container::new(presets_text)
+                .with_margin_bottom(8.)
+                .finish(),
+        );
+
+        // Provider URL examples
+        let examples_text = Text::new_inline(
+            "Examples: http://localhost:11434 (Ollama), http://localhost:1234 (LM Studio), https://api.openai.com/v1 (OpenAI)",
+            appearance.ui_font_family(),
+            CONTENT_FONT_SIZE - 2.0,
+        )
+        .with_color(styles::description_font_color(true, app).into())
+        .finish();
+
+        column.add_child(
+            Container::new(examples_text)
+                .with_margin_bottom(12.)
+                .finish(),
+        );
+
+        // Current config status
+        let current_status = if config.name.is_empty() {
+            "No configuration saved".to_string()
+        } else {
+            format!("Current: {} @ {} (Model: {})", config.name, config.base_url, config.default_model)
+        };
+
+        column.add_child(
+            Container::new(
+                Text::new_inline(
+                    current_status,
+                    appearance.ui_font_family(),
+                    CONTENT_FONT_SIZE - 1.0,
+                )
+                .with_color(styles::description_font_color(true, app).into())
+                .finish(),
+            )
+            .with_margin_bottom(8.)
             .finish(),
         );
 

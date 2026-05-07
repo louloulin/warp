@@ -8,6 +8,7 @@ use warpui::{AppContext, SingletonEntity};
 
 use crate::auth::AuthStateProvider;
 use crate::experiments::FreeTierDefaultModel;
+use crate::settings::AISettings;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 
 use super::llms::{DisableReason, LLMInfo, LLMPreferences};
@@ -64,9 +65,16 @@ pub fn apply_free_tier_default_model_override(
 
 pub fn current_onboarding_auth_state(ctx: &AppContext) -> OnboardingAuthState {
     let auth_state = AuthStateProvider::as_ref(ctx).get();
+
+    // Anonymous users with local LLM configured should see the free user onboarding
+    // instead of the logged-out onboarding, since they can use AI features.
     if auth_state.is_anonymous_or_logged_out() {
+        if AISettings::as_ref(ctx).is_local_llm_configured() {
+            return OnboardingAuthState::FreeUser;
+        }
         return OnboardingAuthState::LoggedOut;
     }
+
     let is_on_paid_plan = UserWorkspaces::as_ref(ctx)
         .current_workspace()
         .map(|w| w.billing_metadata.is_user_on_paid_plan())

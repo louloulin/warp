@@ -1502,6 +1502,20 @@ impl AISettings {
         *self.is_any_ai_enabled && !self.is_ai_disabled_due_to_remote_session_org_policy(app)
     }
 
+    /// Check if a local LLM provider is configured.
+    /// Returns true if GenericProviderConfig exists and has valid settings.
+    #[cfg(not(target_family = "wasm"))]
+    pub fn is_local_llm_configured(&self) -> bool {
+        use crate::ai::agent_sdk::driver::harness::generic_http::GenericProviderConfig;
+        GenericProviderConfig::load()
+            .map(|config| !config.base_url.is_empty() && !config.default_model.is_empty())
+            .unwrap_or(false)
+    }
+    #[cfg(target_family = "wasm")]
+    pub fn is_local_llm_configured(&self) -> bool {
+        false
+    }
+
     pub fn default_session_mode(&self, app: &AppContext) -> DefaultSessionMode {
         let mode = *self.default_session_mode_internal.value();
         match mode {
