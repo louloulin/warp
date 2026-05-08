@@ -14445,7 +14445,6 @@ dependencies = [
 [[package]]
 name = "warp-workflows"
 version = "0.1.0"
-source = "git+https://github.com/warpdotdev/workflows?rev=793a98ddda6ef19682aed66364faebd2829f0e01#793a98ddda6ef19682aed66364faebd2829f0e01"
 dependencies = [
  "anyhow",
  "convert_case 0.4.0",
@@ -14459,7 +14458,6 @@ dependencies = [
 [[package]]
 name = "warp-workflows-types"
 version = "0.1.0"
-source = "git+https://github.com/warpdotdev/workflows?rev=793a98ddda6ef19682aed66364faebd2829f0e01#793a98ddda6ef19682aed66364faebd2829f0e01"
 dependencies = [
  "serde",
 ]
