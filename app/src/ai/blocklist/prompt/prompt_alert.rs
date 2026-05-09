@@ -136,6 +136,12 @@ impl PromptAlertView {
             return PromptAlertState::NoConnection;
         }
 
+        // Local LLM users bypass all usage limits since they use their own providers.
+        // We return NoAlert early so they can always use AI features without login.
+        if AISettings::as_ref(app).is_local_llm_configured() {
+            return PromptAlertState::NoAlert;
+        }
+
         // Check if telemetry is disabled for free tier users.
         // Free tier users must enable telemetry or upgrade to use AI features.
         let privacy_settings = PrivacySettings::as_ref(app);
@@ -156,11 +162,9 @@ impl PromptAlertView {
         let auth_state = AuthStateProvider::as_ref(app).get();
 
         // Next, if the user is anonymous, we check if they have reached a certain percentage of requests used.
-        // Local LLM users bypass anonymous user limits since they're using their own providers.
-        if !AISettings::as_ref(app).is_local_llm_configured()
-            && auth_state
-                .is_anonymous_user_feature_gated()
-                .unwrap_or_default()
+        if auth_state
+            .is_anonymous_user_feature_gated()
+            .unwrap_or_default()
         {
             let percentage_used = request_usage_model.request_percentage_used();
 

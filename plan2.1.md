@@ -664,3 +664,70 @@ fn convert_chunk_to_response_event(text: String) -> Result<ResponseEvent, Error>
 *本计划基于深度代码追踪生成，v2.1 更新于 2026-05-08*
 *代码已提交: 5b7d6d8 feat: add user query extraction and login bypass for local LLM*
 *Bundle: target/aarch64-apple-darwin/release-lto/bundle/osx/WarpOss.app*
+---
+
+## 📝 实现记录 (2026-05-09)
+
+### 修复: GUI 登录拦截问题
+
+**问题分析**: 用户报告 `Attempted to retrieve access token when user is logged out` 错误
+
+**根本原因**: 多个 GUI 检查点在本地 LLM 配置后仍然阻止 AI 请求
+
+**修复内容**:
+
+#### 1. `prompt_alert.rs` - determine_state() 关键修复
+
+**问题**: 即使本地 LLM 已配置，`determine_state()` 仍会检查 `has_any_ai_remaining()`，
+当 Warp Server 的 request quota 为 0 时返回 `RequestLimitReached`，阻止 AI 请求。
+
+**修复**: 在 `determine_state()` 开头添加本地 LLM 用户的 early return：
+
+```rust
+// Local LLM users bypass all usage limits since they use their own providers.
+if AISettings::as_ref(app).is_local_llm_configured() {
+    return PromptAlertState::NoAlert;
+}
+```
+
+这意味着本地 LLM 用户永远不会被 request usage 限制阻止。
+
+#### 2. 已有的修复 (之前版本)
+
+| 文件 | 行 | 修改 |
+|------|-----|------|
+| `impl.rs` | 24-28 | 本地 LLM 路由拦截 |
+| `root_view.rs` | 2259-2263 | onboarding 登录旁路 |
+| `onboarding.rs` | 71-74 | onboarding 状态旁路 |
+| `local_llm_output.rs` | 全文件 | SSE 流式处理 |
+| `settings/ai.rs` | 1508-1520 | is_local_llm_configured() |
+
+#### 3. 无需修改的检查点
+
+| 文件 | 原因 |
+|------|------|
+| `llms.rs:852` | 模型刷新，非阻止性 |
+| `request_usage_model.rs:227` | usage 刷新，非阻止性 |
+| `agent_sdk/mod.rs:1334` | CLI 模式，不是 GUI |
+| `settings_view/ai_page.rs:3600` | 升级 CTA，不阻止配置 |
+
+### GUI 本地 LLM 使用路径
+
+1. 用户选择 Terminal 模式完成 onboarding（不需要登录）
+2. 进入 Settings → AI → Third Party CLI Agents
+3. 在 "Local LLM Provider" 区域配置:
+   - Provider URL: `http://localhost:11434` (Ollama) 或 `https://api.deepseek.com/v1` (DeepSeek)
+   - API Key: (可选) Bearer token
+   - Model: `llama3` 或 `deepseek-chat`
+4. 点击 "Save" 保存配置
+5. 启用 AI 功能（Settings → AI → Enable AI）
+6. 在终端中输入 AI 提示，开始使用
+
+### 进度: **97%**
+
+完成度从 95% 提升到 97%，关键修复:
+- ✅ prompt_alert determine_state 本地 LLM early return
+- ✅ 所有 GUI 登录检查点已分析确认
+
+待完成:
+- ⏳ 手动测试验证
