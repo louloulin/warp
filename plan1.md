@@ -4,11 +4,11 @@
 >
 > **项目路径**: `/Users/louloulin/Documents/linchong/rust/warp`
 >
-> **计划版本**: 8.0 (代码完成，待本地构建验证)
+> **计划版本**: 11.0 (Local LLM Provider UI 交互式配置)
 >
 > **生成日期**: 2026-05-02
 >
-> **更新日期**: 2026-05-03
+> **更新日期**: 2026-05-04
 
 ---
 
@@ -16,7 +16,11 @@
 
 | 日期 | 版本 | 变更 |
 |------|------|------|
-| 2026-05-03 | 8.0 | 添加 workspace exclude，rustfmt 格式化 |
+| 2026-05-04 | 11.0 | Local LLM Provider UI 交互式配置：Provider URL、API Key、Model 输入框，Save/Test 按钮 |
+| 2026-05-04 | 11.1 | 移除 GlobalAIWidget 的登录检查，显示 AI 切换给所有用户；添加 is_local_llm_configured() 方法；跳过本地 LLM 配置用户的 AI 注册横幅；更新 onboarding 和 prompt_alert 以支持本地 LLM |
+| 2026-05-04 | 10.0 | 修复 command_requires_auth，Generic harness 无需登录 |
+| 2026-05-03 | 9.1 | GUI Bundle 验证完成，WarpOss.app 创建成功 |
+| 2026-05-03 | 9.0 | 本地构建验证完成，warp-oss 编译成功 |
 | 2026-05-03 | 7.4 | 更新文件清单，标记所有修改文件完成 |
 | 2026-05-03 | 7.2 | 添加配置验证 (validate) 方法及单元测试 |
 | 2026-05-03 | 7.1 | 补充 harness_display 集成 |
@@ -147,12 +151,59 @@ warp_multi_agent_api::ResponseEvent::decode(decoded_data.as_slice())
 | UI 集成 | harness_display.rs | ✅ 2026-05-03 |
 | 配置验证 | validate() 方法 | ✅ 2026-05-03 |
 | CLI 修复 | --model 与 ModelArgs 冲突修复 | ✅ 2026-05-03 |
+| 本地构建验证 | cargo build --bin warp-oss | ✅ 2026-05-03 |
+| command_requires_auth 修复 | Generic harness 无需登录 | ✅ 2026-05-04 |
+| Metal shader 编译跳过 | 无 Xcode CLI tools 时跳过 | ✅ 2026-05-04 |
+| Local LLM Provider UI | 交互式配置界面 | ✅ 2026-05-04 |
+
+### ✅ 验证结果
+
+**本地构建测试** (2026-05-04):
+```bash
+$ cargo build --bin warp-oss
+warning: warpui@0.0.0: Metal shader compilation skipped (Metal compiler not available)
+   Finished `dev` profile [unoptimized + debuginfo] target(s) in 2m 11s
+```
+
+**command_requires_auth 修复** (2026-05-04):
+当使用 `--harness generic` 或指定 `--provider-url`/`--api-key`/`--llm-model` 时，不再要求登录。
+```rust
+// app/src/ai/agent_sdk/mod.rs
+AgentCommand::Run(run_args) => {
+    if run_args.provider_url.is_some()
+        || run_args.api_key.is_some()
+        || run_args.llm_model.is_some()
+        || run_args.harness == Harness::Generic
+    {
+        false  // 不需要登录
+    } else {
+        true
+    }
+}
+```
+
+**CLI Generic Harness 验证** (2026-05-04):
+```bash
+$ ./target/debug/warp-oss agent run --harness generic --prompt "Hello"
+# 不再显示 "You are not logged in" 错误
+# 执行可能因沙盒限制失败，但 CLI 参数验证通过
+```
+
+**二进制信息**:
+```
+target/debug/warp-oss
+- Mach-O 64-bit executable arm64
+- Size: ~700MB (debug build)
+```
+
+**已知限制**: macOS 沙盒阻止 CLI 直接执行，但命令参数验证通过
 
 ### 🔲 待完成 (手动测试)
 
 | 组件 | 说明 |
 |------|------|
 | **实际环境测试** | 需要 Ollama/LM Studio 运行实例 |
+| **真实启动 GUI** | 需要 macOS GUI 沙盒权限 |
 
 ---
 
@@ -247,11 +298,17 @@ pub struct OpenAICompatibleProvider {
 **修改文件**:
 | 文件 | 修改 |
 |------|------|
-| `crates/warp_cli/src/agent.rs` | 添加 `Harness::Generic` 枚举 |
+| `crates/warp_cli/src/agent.rs` | 添加 `Harness::Generic` 枚举，修复 harness_generic ArgGroup |
 | `app/src/ai/agent_sdk/driver/harness/mod.rs` | 注册 GenericHarness |
-| `app/src/ai/agent_sdk/mod.rs` | 添加 build_generic_harness_args |
+| `app/src/ai/agent_sdk/mod.rs` | 添加 build_generic_harness_args，修复 command_requires_auth |
+| `app/src/ai/agent_sdk/driver.rs` | 移除登录检查，添加 AI 可用性注释 |
 | `app/src/ai/harness_display.rs` | 添加 Generic harness 显示支持 |
-| `app/src/settings_view/ai_page.rs` | 添加 LocalLLMProviderWidget UI |
+| `app/src/settings_view/ai_page.rs` | 添加 LocalLLMProviderWidget UI，移除 GlobalAIWidget 登录检查 |
+| `crates/warpui/build.rs` | 修复 Metal shader 编译跳过逻辑 |
+| `app/src/settings/ai.rs` | 移除 is_anonymous_or_logged_out 检查，添加 is_local_llm_configured() |
+| `app/src/terminal/view.rs` | 跳过本地 LLM 配置用户的 AI 注册横幅 |
+| `app/src/ai/blocklist/prompt/prompt_alert.rs` | 本地 LLM 用户跳过匿名用户请求限制 |
+| `app/src/ai/onboarding.rs` | 本地 LLM 配置用户显示 FreeUser onboarding |
 
 ---
 
@@ -266,6 +323,11 @@ pub struct OpenAICompatibleProvider {
 - [x] Provider 配置 UI
 - [x] 集成测试 (mockito)
 - [x] 配置验证 (validate)
+- [x] UI 登录门移除 - GlobalAIWidget 显示 AI 切换给所有用户
+- [x] 本地 LLM 配置检测 - is_local_llm_configured() 方法
+- [x] AI 注册横幅跳过 - 本地 LLM 配置用户不显示注册提示
+- [x] 匿名用户请求限制豁免 - 本地 LLM 用户不受限制
+- [x] Onboarding 状态更新 - 本地 LLM 配置用户显示 FreeUser onboarding
 - [ ] Ollama 实际环境测试
 
 ---
@@ -348,9 +410,10 @@ ollama pull llama3
 
 ### 已知限制
 
-- `crates/warp-workflows` 需要单独初始化 (git submodule)
-- 构建需要 Metal shaders (Xcode 开发者工具)
+- ~~`crates/warp-workflows` 需要单独初始化 (git submodule)~~ - 已修复，使用 workspace exclude
+- ~~构建需要 Metal shaders (Xcode 开发者工具)~~ - 已修复，跳过已编译的 shaders
 - 网络代理环境可能需要配置
+- 真实 GUI 启动需要 macOS 沙盒权限
 
 ---
 

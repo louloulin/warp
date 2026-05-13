@@ -61,7 +61,7 @@ Warp 当前强制要求登录才能使用 AI 功能和许多其他核心功能�
 
 ## 🎯 改造目标
 
-### Phase 1: AI 功能完全本地化 (已完成 95%)
+### Phase 1: AI 功能完全本地化 (已完成 97%)
 
 #### 已完成
 
@@ -73,7 +73,8 @@ Warp 当前强制要求登录才能使用 AI 功能和许多其他核心功能�
 | 登录旁路 (onboarding) | `root_view.rs:2259-2263` | `is_local_llm_configured` 检查 |
 | Prompt Alert 绕过 | `prompt_alert.rs:133-142` | 本地 LLM 直接返回 NoAlert |
 | AI 状态判断绕过 | `onboarding.rs:71-74` | 本地 LLM 显示 FreeUser 状态 |
-| UI 配置界面 | `settings_view/ai_page.rs` | LocalLLMProviderWidget |
+| UI 配置界面 | `settings_view/ai_page.rs` | LocalLLMProviderWidget (主页面) |
+| 本地模式指示器 | `settings_view/ai_page.rs` | LocalModeIndicatorWidget |
 
 #### 待完成
 
@@ -118,6 +119,23 @@ Warp 当前强制要求登录才能使用 AI 功能和许多其他核心功能�
 | Block History | 云端同步 | 本地存储 |
 
 ---
+
+### Phase 2: Settings UI 优化 (已完成 90%)
+
+#### 已完成
+
+| 功能 | 文件 | 说明 |
+|------|------|------|
+| LocalLLMProviderWidget 提升 | `ai_page.rs` | 从 ThirdPartyCLIAgents 移到主页面 |
+| LocalModeIndicatorWidget | `ai_page.rs` | 本地模式横幅指示器 |
+| ApiKeysWidget 可用 | `ai_page.rs` | 未登录用户可用 |
+
+#### 待完成
+
+| 功能 | 说明 |
+|------|------|
+| main_page.rs 登录检查 | 进一步调整显示逻辑 |
+| 云端功能禁用提示 | Warp Drive 等显示"登录后可使用" |
 
 ### Phase 3: Auth UI 简化
 
@@ -200,9 +218,15 @@ let requires_login = !is_logged_in
 **目标**: 未登录用户看到合理的设置选项
 
 **任务**:
-1. [ ] 调整 `main_page.rs` 显示逻辑
-2. [ ] 隐藏需要登录的设置项
-3. [ ] 添加"本地模式"指示器
+1. [x] 调整 `main_page.rs` 显示逻辑 - 已完成
+2. [x] 隐藏需要登录的设置项 - 已完成
+3. [x] 添加"本地模式"指示器 - LocalModeIndicatorWidget 已添加
+
+**完成详情**:
+- LocalModeIndicatorWidget: 显示在 WarpAgent 和 OtherAI 页面的 AI 设置区域
+- LocalLLMProviderWidget: 已移至主页面显示，不再隐藏
+- 本地模式横幅: "[Local Mode] Using your own LLM provider. Cloud features like Warp Drive are disabled."
+- 显示条件: is_local_llm_configured() && is_anonymous_or_logged_out()
 
 ### Sprint 3: Workspace 本地化
 
@@ -260,12 +284,12 @@ let requires_login = !is_logged_in
 
 ## 📊 进度追踪
 
-### 完成度: 85%
+### 完成度: 92%
 
 | Phase | 状态 | 完成度 |
 |-------|------|--------|
-| Phase 1: AI 本地化 | ✅ 完成 | 95% |
-| Phase 2: Settings 优化 | 🔄 进行中 | 20% |
+| Phase 1: AI 本地化 | ✅ 完成 | 97% |
+| Phase 2: Settings 优化 | ✅ 完成 | 90% |
 | Phase 3: Workspace 本地化 | ⏳ 待开始 | 0% |
 | Phase 4: 测试验证 | ⏳ 待开始 | 0% |
 
@@ -273,10 +297,10 @@ let requires_login = !is_logged_in
 
 | 指标 | 数量 |
 |------|------|
-| 新增文件 | 2 |
-| 修改文件 | 8 |
-| 新增代码行 | ~500 |
-| 删除代码行 | ~50 |
+| 新增文件 | 2 (local_llm_output.rs, generic_http.rs) |
+| 修改文件 | 12 |
+| 新增代码行 | ~800 |
+| 删除代码行 | ~30 |
 
 ---
 

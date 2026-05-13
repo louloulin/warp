@@ -1574,6 +1574,7 @@ impl AISettingsPageView {
                 widgets.push(Box::new(CLIAgentWidget::default()));
                 widgets.push(Box::new(ApiKeysWidget::new(ctx)));
                 widgets.push(Box::new(AwsBedrockWidget::new(ctx)));
+                widgets.push(Box::new(LocalModeIndicatorWidget::default()));
                 widgets.push(Box::new(LocalLLMProviderWidget::default()));
                 widgets.push(Box::new(AgentAttributionWidget::default()));
                 widgets.push(Box::new(OtherAIWidget::default()));
@@ -1615,6 +1616,7 @@ impl AISettingsPageView {
                 }
                 widgets.push(Box::new(ApiKeysWidget::new(ctx)));
                 widgets.push(Box::new(AwsBedrockWidget::new(ctx)));
+                widgets.push(Box::new(LocalModeIndicatorWidget::default()));
                 widgets.push(Box::new(LocalLLMProviderWidget::default()));
                 widgets.push(Box::new(AgentAttributionWidget::default()));
                 widgets.push(Box::new(OtherAIWidget::default()));
@@ -6085,6 +6087,57 @@ impl SettingsWidget for LocalLLMProviderWidget {
         );
 
         column.finish()
+    }
+}
+
+/// Widget that shows a banner when the user is in local-only mode
+/// (local LLM configured and not logged in). This helps users understand
+/// why certain cloud features are disabled.
+#[derive(Default)]
+struct LocalModeIndicatorWidget {}
+
+impl SettingsWidget for LocalModeIndicatorWidget {
+    type View = AISettingsPageView;
+
+    fn search_terms(&self) -> &str {
+        "local mode offline standalone"
+    }
+
+    fn should_render(&self, app: &AppContext) -> bool {
+        // Only show when local LLM is configured and user is not logged in
+        let is_local_llm = AISettings::as_ref(app).is_local_llm_configured();
+        let is_anonymous = AuthStateProvider::as_ref(app)
+            .get()
+            .is_anonymous_or_logged_out();
+        is_local_llm && is_anonymous
+    }
+
+    fn render(
+        &self,
+        _view: &Self::View,
+        appearance: &Appearance,
+        _app: &AppContext,
+    ) -> Box<dyn Element> {
+        // Use the description font color which adapts to theme
+        let description_color = blended_colors::text_sub(
+            appearance.theme(),
+            appearance.theme().surface_1(),
+        );
+
+        Container::new(
+            Text::new_inline(
+                "[Local Mode] Using your own LLM provider. Cloud features like Warp Drive are disabled.",
+                appearance.ui_font_family(),
+                CONTENT_FONT_SIZE - 1.0,
+            )
+            .with_color(description_color.into())
+            .finish(),
+        )
+        .with_padding_left(8.0)
+        .with_padding_right(8.0)
+        .with_padding_top(8.0)
+        .with_padding_bottom(8.0)
+        .finish()
     }
 }
 
