@@ -134,7 +134,7 @@ Warp 当前强制要求登录才能使用 AI 功能和许多其他核心功能�
 
 | 功能 | 说明 |
 |------|------|
-| main_page.rs 登录检查 | 进一步调整显示逻辑 |
+| main_page.rs 登录检查 | 确认：仅阻止 Upgrade/Billing/SettingsSync 等云端功能 ✅ |
 | 云端功能禁用提示 | Warp Drive 等显示"登录后可使用" |
 
 ### Phase 3: Auth UI 简化
