@@ -6074,9 +6074,10 @@ impl SettingsWidget for LocalLLMProviderWidget {
                         .finish(),
                     )
                     .with_child(
-                        Container::new(
+                        ConstrainedBox::new(
                             ChildView::new(&view.local_llm_api_format_dropdown).finish(),
                         )
+                        .with_width(280.)
                         .finish(),
                     )
                     .finish(),
