@@ -5918,17 +5918,18 @@ impl SettingsWidget for LocalLLMProviderWidget {
                         .finish(),
                     )
                     .with_child(
-                        Shrinkable::new(
-                            1.,
+                        Container::new(
                             appearance
                                 .ui_builder()
                                 .text_input(view.local_llm_url_editor.clone())
                                 .with_style(UiComponentStyles {
-                                    height: Some(TOP_MENU_BAR_HEIGHT),
-                                    font_color: Some(pathfinder_color::ColorU::black()),
-                                    font_size: Some(appearance.ui_font_size()),
-                                    padding: Some(Coords::uniform(7.)),
-                                    margin: Some(Coords::default().top(4.).bottom(8.)),
+                                    width: Some(280.),
+                                    padding: Some(Coords {
+                                        top: 4.,
+                                        bottom: 4.,
+                                        left: 6.,
+                                        right: 6.,
+                                    }),
                                     background: Some(appearance.theme().surface_2().into()),
                                     ..Default::default()
                                 })
@@ -5956,17 +5957,18 @@ impl SettingsWidget for LocalLLMProviderWidget {
                         .finish(),
                     )
                     .with_child(
-                        Shrinkable::new(
-                            1.,
+                        Container::new(
                             appearance
                                 .ui_builder()
                                 .text_input(view.local_llm_api_key_editor.clone())
                                 .with_style(UiComponentStyles {
-                                    height: Some(TOP_MENU_BAR_HEIGHT),
-                                    font_color: Some(pathfinder_color::ColorU::black()),
-                                    font_size: Some(appearance.ui_font_size()),
-                                    padding: Some(Coords::uniform(7.)),
-                                    margin: Some(Coords::default().top(4.).bottom(8.)),
+                                    width: Some(280.),
+                                    padding: Some(Coords {
+                                        top: 4.,
+                                        bottom: 4.,
+                                        left: 6.,
+                                        right: 6.,
+                                    }),
                                     background: Some(appearance.theme().surface_2().into()),
                                     ..Default::default()
                                 })
@@ -5994,17 +5996,18 @@ impl SettingsWidget for LocalLLMProviderWidget {
                         .finish(),
                     )
                     .with_child(
-                        Shrinkable::new(
-                            1.,
+                        Container::new(
                             appearance
                                 .ui_builder()
                                 .text_input(view.local_llm_model_editor.clone())
                                 .with_style(UiComponentStyles {
-                                    height: Some(TOP_MENU_BAR_HEIGHT),
-                                    font_color: Some(pathfinder_color::ColorU::black()),
-                                    font_size: Some(appearance.ui_font_size()),
-                                    padding: Some(Coords::uniform(7.)),
-                                    margin: Some(Coords::default().top(4.).bottom(8.)),
+                                    width: Some(280.),
+                                    padding: Some(Coords {
+                                        top: 4.,
+                                        bottom: 4.,
+                                        left: 6.,
+                                        right: 6.,
+                                    }),
                                     background: Some(appearance.theme().surface_2().into()),
                                     ..Default::default()
                                 })
