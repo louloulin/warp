@@ -250,7 +250,6 @@ let requires_login = !is_logged_in
 2. [ ] DeepSeek API 测试
 3. [ ] MiniMax API 测试
 4. [ ] 无配置状态测试
-4. [ ] 无配置状态测试
 
 ---
 
