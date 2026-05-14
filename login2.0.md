@@ -75,6 +75,7 @@ Warp 当前强制要求登录才能使用 AI 功能和许多其他核心功能�
 | AI 状态判断绕过 | `onboarding.rs:71-74` | 本地 LLM 显示 FreeUser 状态 |
 | UI 配置界面 | `settings_view/ai_page.rs` | LocalLLMProviderWidget (主页面) |
 | 本地模式指示器 | `settings_view/ai_page.rs` | LocalModeIndicatorWidget |
+| API Format 选择器 | `settings_view/ai_page.rs` | 下拉菜单选择 OpenAI/Anthropic 格式 ✅ 新增 |
 
 #### 待完成
 
@@ -288,12 +289,12 @@ let requires_login = !is_logged_in
 
 ## 📊 进度追踪
 
-### 完成度: 94%
+### 完成度: 95%
 
 | Phase | 状态 | 完成度 |
 |-------|------|--------|
-| Phase 1: AI 本地化 | ✅ 完成 | 97% |
-| Phase 2: Settings 优化 | ✅ 完成 | 95% |
+| Phase 1: AI 本地化 | ✅ 完成 | 98% |
+| Phase 2: Settings 优化 | ✅ 完成 | 98% |
 | Phase 3: Workspace 本地化 | ✅ 分析完成 | 100% |
 | Phase 4: 测试验证 | ⏳ 待开始 | 0% |
 
@@ -302,9 +303,19 @@ let requires_login = !is_logged_in
 | 指标 | 数量 |
 |------|------|
 | 新增文件 | 2 (local_llm_output.rs, generic_http.rs) |
-| 修改文件 | 12 |
-| 新增代码行 | ~800 |
+| 修改文件 | 13 |
+| 新增代码行 | ~850 |
 | 删除代码行 | ~30 |
+
+### Bug 修复记录
+
+| 日期 | 问题 | 修复 |
+|------|------|------|
+| 2026-05-14 | MiniMax API 404 错误 | 添加 ApiFormat 字段区分 OpenAI/Anthropic 格式 |
+
+**MiniMax 问题根因**: URL `https://api.minimaxi.com/anthropic` 包含 "anthropic" 字符串，但 MiniMax 实际使用 **OpenAI 兼容格式** (需要 `/v1/chat/completions` 端点)。`is_anthropic()` 通过 URL 判断导致错误路由。
+
+**修复方案**: 添加显式 `ApiFormat` 枚举，用户可通过 UI 下拉菜单选择正确的 API 格式。
 
 ---
 
