@@ -234,10 +234,12 @@ let requires_login = !is_logged_in
 
 **目标**: 未登录用户可以使用本地工作区
 
-**任务**:
-1. [ ] 分析 workspace 登录依赖
-2. [ ] 实现本地 workspace 存储
-3. [ ] UI 调整
+**分析结论**: Workspace 本身不需要登录 ✅
+
+**发现**:
+- 本地 Workspace 可以正常使用
+- 云端功能在内部处理，会显示相应提示
+- 无需代码修改
 
 ### Sprint 4: 测试验证
 
@@ -247,6 +249,7 @@ let requires_login = !is_logged_in
 1. [ ] 本地 LLM (Ollama) 测试
 2. [ ] DeepSeek API 测试
 3. [ ] MiniMax API 测试
+4. [ ] 无配置状态测试
 4. [ ] 无配置状态测试
 
 ---
