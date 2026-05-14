@@ -76,9 +76,15 @@ pub async fn generate_local_llm_output(
 ) -> Result<ResponseStream, ConvertToAPITypeError> {
     let client = reqwest::Client::new();
 
-    // Build URL for OpenAI-compatible endpoint
+    // Build URL based on provider type
     let base_url = config.base_url.trim_end_matches('/');
-    let url = format!("{}/v1/chat/completions", base_url);
+    let url = if config.is_anthropic() {
+        // Anthropic API uses /v1/messages endpoint
+        format!("{}/v1/messages", base_url)
+    } else {
+        // OpenAI-compatible uses /v1/chat/completions
+        format!("{}/v1/chat/completions", base_url)
+    };
 
     // Extract user query from params
     let user_query = extract_user_query(&params);
@@ -86,12 +92,21 @@ pub async fn generate_local_llm_output(
     // Build messages for the request
     let messages = build_messages(&user_query, &params.input);
 
-    // Create OpenAI-compatible request
-    let request = LocalChatRequest {
-        model: config.default_model.clone(),
-        messages,
-        stream: true,
-        tools: None,
+    // Create request body
+    let request = if config.is_anthropic() {
+        // Anthropic API request format
+        serde_json::json!({
+            "model": config.default_model,
+            "messages": messages,
+            "stream": true
+        })
+    } else {
+        // OpenAI-compatible request format
+        serde_json::json!({
+            "model": config.default_model,
+            "messages": messages,
+            "stream": true
+        })
     };
 
     // Prepare request builder
@@ -103,6 +118,11 @@ pub async fn generate_local_llm_output(
     // Add auth header if API key is provided
     if let Some(ref api_key) = config.api_key {
         req_builder = req_builder.header("Authorization", format!("Bearer {}", api_key));
+    }
+
+    // Add Anthropic-specific headers
+    if config.is_anthropic() {
+        req_builder = req_builder.header("anthropic-version", "2023-06-01");
     }
 
     // Send request

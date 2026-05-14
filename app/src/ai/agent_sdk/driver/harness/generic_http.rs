@@ -25,6 +25,21 @@ use warpui::{ModelHandle, ModelSpawner};
 use super::super::terminal::{CommandHandle, TerminalDriver};
 use super::{AgentDriverError, SavePoint, ThirdPartyHarness};
 
+/// API format type for the provider.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ApiFormat {
+    /// OpenAI-compatible format (uses /v1/chat/completions)
+    OpenAI,
+    /// Anthropic format (uses /v1/messages with anthropic-version header)
+    Anthropic,
+}
+
+impl Default for ApiFormat {
+    fn default() -> Self {
+        ApiFormat::OpenAI
+    }
+}
+
 /// Configuration for a generic OpenAI-compatible provider.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GenericProviderConfig {
@@ -38,6 +53,9 @@ pub struct GenericProviderConfig {
     pub default_model: String,
     /// Whether streaming is enabled.
     pub streaming: bool,
+    /// API format type (OpenAI or Anthropic).
+    #[serde(default)]
+    pub api_format: ApiFormat,
 }
 
 impl Default for GenericProviderConfig {
@@ -48,6 +66,7 @@ impl Default for GenericProviderConfig {
             api_key: None,
             default_model: "llama3".to_string(),
             streaming: true,
+            api_format: ApiFormat::OpenAI,
         }
     }
 }
@@ -59,8 +78,9 @@ impl GenericProviderConfig {
     }
 
     /// Check if this is an Anthropic API endpoint.
+    /// Returns true if api_format is Anthropic OR base_url contains "anthropic" (legacy detection).
     pub fn is_anthropic(&self) -> bool {
-        self.base_url.contains("anthropic")
+        self.api_format == ApiFormat::Anthropic || self.base_url.contains("anthropic")
     }
 
     /// Get the Anthropic API URL for direct Claude access.
@@ -337,6 +357,7 @@ impl GenericProviderConfig {
             api_key: Some(api_key),
             default_model: "gpt-4o".to_string(),
             streaming: true,
+            api_format: ApiFormat::OpenAI,
         }
     }
 
@@ -348,6 +369,7 @@ impl GenericProviderConfig {
             api_key: Some(api_key),
             default_model: "llama-3.1-70b-versatile".to_string(),
             streaming: true,
+            api_format: ApiFormat::OpenAI,
         }
     }
 
@@ -359,6 +381,7 @@ impl GenericProviderConfig {
             api_key: Some(api_key),
             default_model: "meta-llama/Llama-3-70b-chat-hf".to_string(),
             streaming: true,
+            api_format: ApiFormat::OpenAI,
         }
     }
 
@@ -370,6 +393,7 @@ impl GenericProviderConfig {
             api_key,
             default_model: String::new(),
             streaming: true,
+            api_format: ApiFormat::OpenAI,
         }
     }
 
@@ -382,6 +406,7 @@ impl GenericProviderConfig {
             api_key: Some(api_key),
             default_model: "claude-sonnet-4-20250514".to_string(),
             streaming: true,
+            api_format: ApiFormat::Anthropic,
         }
     }
 
@@ -411,6 +436,7 @@ impl GenericProviderConfig {
             api_key: Some(api_key),
             default_model: "accounts/fireworks/models/llama-v3-70b-instruct".to_string(),
             streaming: true,
+            api_format: ApiFormat::OpenAI,
         }
     }
 
@@ -422,6 +448,7 @@ impl GenericProviderConfig {
             api_key: Some(api_key),
             default_model: "mistral-large-latest".to_string(),
             streaming: true,
+            api_format: ApiFormat::OpenAI,
         }
     }
 
@@ -433,6 +460,7 @@ impl GenericProviderConfig {
             api_key: Some(api_key),
             default_model: "sonar".to_string(),
             streaming: true,
+            api_format: ApiFormat::OpenAI,
         }
     }
 
@@ -445,6 +473,7 @@ impl GenericProviderConfig {
             api_key: Some(api_key),
             default_model: deployment,
             streaming: true,
+            api_format: ApiFormat::OpenAI,
         }
     }
 }
@@ -1245,6 +1274,7 @@ mod tests {
             api_key: Some("secret".to_string()),
             default_model: "test-model".to_string(),
             streaming: false,
+            api_format: ApiFormat::OpenAI,
         };
 
         let json = serde_json::to_string(&original).unwrap();
@@ -1255,6 +1285,7 @@ mod tests {
         assert_eq!(deserialized.api_key, original.api_key);
         assert_eq!(deserialized.default_model, original.default_model);
         assert_eq!(deserialized.streaming, original.streaming);
+        assert_eq!(deserialized.api_format, original.api_format);
     }
 
     #[test]
@@ -1269,6 +1300,7 @@ mod tests {
             api_key: None,
             default_model: "rt-model".to_string(),
             streaming: true,
+            api_format: ApiFormat::Anthropic,
         };
 
         original.save_to_file(&path).unwrap();

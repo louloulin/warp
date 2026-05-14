@@ -1,5 +1,5 @@
 #[cfg(not(target_family = "wasm"))]
-use crate::ai::agent_sdk::driver::harness::generic_http::GenericProviderConfig;
+use crate::ai::agent_sdk::driver::harness::generic_http::{ApiFormat, GenericProviderConfig};
 #[cfg(not(target_family = "wasm"))]
 use crate::ai::aws_credentials::refresh_aws_credentials;
 use crate::ai::blocklist::agent_view::agent_input_footer::editor::{
@@ -453,6 +453,7 @@ pub struct AISettingsPageView {
     local_llm_url_editor: ViewHandle<EditorView>,
     local_llm_api_key_editor: ViewHandle<EditorView>,
     local_llm_model_editor: ViewHandle<EditorView>,
+    local_llm_api_format_dropdown: ViewHandle<Dropdown<AISettingsPageAction>>,
     local_llm_save_button: ViewHandle<ActionButton>,
     local_llm_test_button: ViewHandle<ActionButton>,
 }
@@ -1434,6 +1435,33 @@ impl AISettingsPageView {
             editor
         };
 
+        // API Format dropdown (OpenAI vs Anthropic)
+        let local_llm_api_format_dropdown = ctx.add_typed_action_view(|ctx| {
+            let config = GenericProviderConfig::load().unwrap_or_default();
+            let mut dropdown = Dropdown::new(ctx);
+            dropdown.set_top_bar_max_width(AI_SETTINGS_DROPDOWN_WIDTH);
+
+            // Determine selected index based on current API format
+            let selected_index = if config.api_format == ApiFormat::Anthropic { 1 } else { 0 };
+
+            dropdown.add_items(
+                vec![
+                    DropdownItem::new(
+                        "OpenAI Compatible",
+                        AISettingsPageAction::SetLocalLLMApiFormat(ApiFormat::OpenAI),
+                    ),
+                    DropdownItem::new(
+                        "Anthropic API",
+                        AISettingsPageAction::SetLocalLLMApiFormat(ApiFormat::Anthropic),
+                    ),
+                ],
+                ctx,
+            );
+            dropdown.set_selected_by_index(selected_index, ctx);
+
+            dropdown
+        });
+
         let local_llm_save_button = ctx.add_typed_action_view(|_| {
             ActionButton::new("Save Config", SecondaryTheme)
                 .with_size(ButtonSize::Small)
@@ -1494,6 +1522,7 @@ impl AISettingsPageView {
             local_llm_url_editor,
             local_llm_api_key_editor,
             local_llm_model_editor,
+            local_llm_api_format_dropdown,
             local_llm_save_button,
             local_llm_test_button,
         }
@@ -2239,6 +2268,7 @@ pub enum AISettingsPageAction {
     SetLocalLLMProviderURL,
     SetLocalLLMApiKey,
     SetLocalLLMModel,
+    SetLocalLLMApiFormat(ApiFormat),
     TestLocalLLMConnection,
     SaveLocalLLMConfig,
 }
@@ -2964,6 +2994,15 @@ impl TypedActionView for AISettingsPageView {
             }
             AISettingsPageAction::SetLocalLLMModel => {
                 // Model updated via editor blur/enter - value stored in editor
+            }
+            AISettingsPageAction::SetLocalLLMApiFormat(api_format) => {
+                // API format selected from dropdown
+                let mut config = GenericProviderConfig::load().unwrap_or_default();
+                config.api_format = *api_format;
+                if let Err(e) = config.save() {
+                    log::error!("Failed to save API format: {e}");
+                }
+                ctx.notify();
             }
             AISettingsPageAction::SaveLocalLLMConfig => {
                 let base_url = self.local_llm_url_editor.as_ref(ctx).buffer_text(ctx);
@@ -6013,6 +6052,30 @@ impl SettingsWidget for LocalLLMProviderWidget {
                                 })
                                 .build()
                                 .finish(),
+                        )
+                        .finish(),
+                    )
+                    .finish(),
+            )
+            .finish(),
+        );
+
+        // API Format dropdown (OpenAI vs Anthropic)
+        column.add_child(
+            Container::new(
+                Flex::column()
+                    .with_child(
+                        Text::new_inline(
+                            "API Format:",
+                            appearance.ui_font_family(),
+                            CONTENT_FONT_SIZE - 1.0,
+                        )
+                        .with_color(styles::description_font_color(true, app).into())
+                        .finish(),
+                    )
+                    .with_child(
+                        Container::new(
+                            ChildView::new(&view.local_llm_api_format_dropdown).finish(),
                         )
                         .finish(),
                     )
