@@ -55,3 +55,15 @@ desired_behavior.md
 
 # Don't include the python cache for bundled skills.
 __pycache__/
+
+# Claude Code Serena tool
+.serena/
+
+# Local Warp application bundle
+WarpLocal.app/
+
+# Shader cache
+crates/warpui/.warp_shader_cache/
+
+# External workflow specs (should be a submodule from warpdotdev/workflows)
+crates/warp-workflows/
